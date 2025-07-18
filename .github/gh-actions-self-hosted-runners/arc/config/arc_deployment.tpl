@@ -39,7 +39,7 @@ spec:
           effect: "NoSchedule"
       %{~ endif ~}
       image: ${image}
-      organization: ${organization}
+      repository: A1K28/beam
       group: "${group}"
       labels:
       %{~ for label in labels ~}
