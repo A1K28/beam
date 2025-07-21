@@ -27,27 +27,37 @@ resource "google_container_cluster" "actions-runner-gke" {
 
 }
 resource "google_container_node_pool" "main-actions-runner-pool" {
-  name       = "main-pool"
-  cluster    = google_container_cluster.actions-runner-gke.name
-  location   = google_container_cluster.actions-runner-gke.location
+  name               = "main-pool"
+  cluster            = google_container_cluster.actions-runner-gke.name
+  location           = google_container_cluster.actions-runner-gke.location
+
   autoscaling {
     min_node_count = var.main_runner.min_node_count
     max_node_count = var.main_runner.max_node_count
-   }
-   initial_node_count = var.main_runner.min_node_count
+  }
+  initial_node_count = var.main_runner.min_node_count
+
   management {
-    auto_repair  = "true"
-    auto_upgrade = "true"
-   }
+    auto_repair  = true
+    auto_upgrade = true
+  }
+
   node_config {
-    disk_size_gb = var.main_runner.disk_size_gb
-    machine_type = var.main_runner.machine_type
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
+    disk_size_gb    = var.main_runner.disk_size_gb
+    machine_type    = var.main_runner.machine_type
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
     service_account = data.google_service_account.service_account.email
-    tags = ["actions-runner-pool"]
-   }
+    tags            = ["actions-runner-pool"]
+    # we won’t explicitly manage labels here any more
+  }
+
+  lifecycle {
+    # ignore any drift/plan diff on the node_config.resource_labels block
+    ignore_changes = [
+      node_config[0].resource_labels,
+      node_config[0].kubelet_config,
+    ]
+  }
 }
 
 resource "google_container_node_pool" "additional_runner_pools" {

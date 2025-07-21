@@ -17,38 +17,45 @@
 # under the License.
 #
 resource "helm_release" "cert-manager" {
-  name       = "cert-manager"
-  namespace  = "cert-manager"
+  name             = "cert-manager"
+  namespace        = "cert-manager"
   create_namespace = true
-  repository = "https://charts.jetstack.io"
-  chart      = "cert-manager"
-  
-  atomic = "true"
+  repository       = "https://charts.jetstack.io"
+  chart            = "cert-manager"
+
+  atomic  = true
   timeout = 100
 
-  set {
-    name  = "installCRDs"
-    value = "true"
-  }
-  depends_on = [ google_container_node_pool.main-actions-runner-pool ]
+  set = [
+    {
+      name  = "installCRDs"
+      value = "true"
+    }
+  ]
+
+  depends_on = [
+    google_container_node_pool.main-actions-runner-pool
+  ]
 }
 
 resource "helm_release" "arc" {
-  name = "arc"
-  namespace = "arc"
-  create_namespace = "true"
-  repository = "https://actions-runner-controller.github.io/actions-runner-controller"
-  chart = "actions-runner-controller"
+  name             = "arc"
+  namespace        = "arc"
+  create_namespace = true
+  repository       = "https://actions-runner-controller.github.io/actions-runner-controller"
+  chart            = "actions-runner-controller"
 
-  atomic = "true"
+  atomic  = true
   timeout = 120
 
-  dynamic "set" {
-    for_each = local.arc_values
-    content {
-      name = set.key
-      value = set.value
+  set = [
+    for k, v in local.arc_values : {
+      name  = k
+      value = v
     }
-  }
-  depends_on = [ helm_release.cert-manager ]
+  ]
+
+  depends_on = [
+    helm_release.cert-manager
+  ]
 }
