@@ -148,6 +148,13 @@ jobs:
         with:
           go-version: '1.21'
 
+      # - name: Run only TestXLang_Prefix
+      #   working-directory: ./sdks/go
+      #   run: |
+      #     go test ./test/integration/xlang \
+      #       -timeout 30m \
+      #       -run ^TestXLang_Prefix$
+
       # ---- Run the Gradle task (full suite) ----
       - name: Run XVR GoUsingJava Dataflow task
         env:
@@ -159,6 +166,10 @@ jobs:
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
             -PdockerImageRoot=gcr.io/apache-beam-testing/beam-sdk
             -Ptest_filter=TestXLang_Prefix
+            -PpipelineOptions="[
+              \"--sdkHarnessContainerImageOverride=.*java.*,<your‑debug‑harness‑image>\",
+              \"--workerLogLevelOverrides=org.apache.beam.runners.fnexecution.data=DEBUG\"
+            ]"
             --info --stacktrace
 
       - name: Publish JUnit Test Results
