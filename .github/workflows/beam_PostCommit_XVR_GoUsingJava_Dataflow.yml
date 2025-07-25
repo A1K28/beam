@@ -25,7 +25,6 @@ on:
     paths: ['.github/trigger_files/beam_PostCommit_XVR_GoUsingJava_Dataflow.json']
   workflow_dispatch:
 
-#Setting explicit permissions for the action to avoid the default permissions which are `write-all` in case of pull_request_target event
 permissions:
   actions: write
   pull-requests: write
@@ -41,7 +40,6 @@ permissions:
   security-events: read
   statuses: read
 
-# This allows a subsequently queued workflow run to interrupt previous runs
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.event.issue.number || github.sha || github.head_ref || github.ref }}-${{ github.event.schedule || github.event.comment.id || github.event.sender.login }}'
   cancel-in-progress: true
@@ -59,42 +57,130 @@ jobs:
       (github.event_name == 'schedule' && github.repository == 'apache/beam') ||
       github.event.comment.body == 'Run XVR_GoUsingJava_Dataflow PostCommit'
     runs-on: [self-hosted, ubuntu-20.04, main]
-    timeout-minutes: 100
+    timeout-minutes: 300
     name: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
     strategy:
       matrix:
         job_name: ["beam_PostCommit_XVR_GoUsingJava_Dataflow"]
-        job_phrase: ["Run XVR_GoUsingJava_Dataflow PostCommit"]
+        job_phrase: ["Run XVR_GoUsingJava Dataflow PostCommit"]
+
+    env:
+      USER: github-actions
+      PROJECT: apache-beam-testing
+      GO_SDK_IMG: ""   # will be set after build
+
     steps:
       - uses: actions/checkout@v4
+
+      # ---- Make the Go validatesrunner script visible & patch out multi-arch/push/build/tag ----
+      - name: Expose & patch Go test script
+        run: |
+          cp sdks/go/test/run_validatesrunner_tests.sh ./run_validatesrunner_tests.sh
+          chmod +x ./run_validatesrunner_tests.sh
+          # Remove flags your Docker 20.10 doesn't support
+          sed -i 's/-Pcontainer-architecture-list=[^ ]*//g' ./run_validatesrunner_tests.sh
+          sed -i 's/-Ppush-containers//g' ./run_validatesrunner_tests.sh
+          # Strip any internal build/tag/push logic so we control the image
+          sed -i '/GO_SDK_IMAGE=/d' ./run_validatesrunner_tests.sh
+          sed -i '/docker build/d' ./run_validatesrunner_tests.sh
+          sed -i '/docker push/d' ./run_validatesrunner_tests.sh
+      # ---- Prepare gcloud config dir ----
+      - name: Prepare gcloud config dir
+        run: |
+          CFG="$RUNNER_TEMP/gcloud"
+          mkdir -p "$CFG/logs"
+          echo "CLOUDSDK_CONFIG=$CFG" >> "$GITHUB_ENV"
+      # ---- Java before any Gradle ----
+      - name: Set up Java 11
+        id: jdk
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: gradle
+
+      - name: Ensure JAVA_HOME/bin on PATH
+        run: |
+          echo "${{ steps.jdk.outputs.path }}/bin" >> "$GITHUB_PATH"
+          echo "JAVA_HOME=${{ steps.jdk.outputs.path }}" >> "$GITHUB_ENV"
+          which java && java -version
       - name: Setup repository
         uses: ./.github/actions/setup-action
         with:
           comment_phrase: ${{ matrix.job_phrase }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
+
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
           python-version: default
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: GCloud Docker credential helper
+
+      - name: Set up Docker Buildx (optional)
+        uses: docker/setup-buildx-action@v3
+
+      # ---- gcloud auth ----
+      - name: Install gcloud CLI
         run: |
-          gcloud auth configure-docker us.gcr.io
-      - name: run XVR GoUsingJava Dataflow script
+          mkdir -p "$CLOUDSDK_CONFIG/logs"
+          curl -sSL https://sdk.cloud.google.com | bash
+          echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+          source "$HOME/google-cloud-sdk/path.bash.inc"
+          gcloud --version
+      - name: gcloud auth (service account) + docker login
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
+          gcloud auth activate-service-account --key-file="$HOME/sa.json"
+          gcloud config set project $PROJECT
+          # === Add this ===
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
+          # ================
+          
+          # your existing docker login bits…
+          gcloud auth configure-docker us.gcr.io -q
+          echo '${{ secrets.GCP_SA_KEY }}' \
+            | docker login -u _json_key --password-stdin https://us.gcr.io
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      # ---- Build & push Go SDK image (single tag source) ----
+      - name: Build & push Go SDK container
+        run: |
+          TAG=$(date +%Y%m%d-%H%M%S)
+          IMG="us.gcr.io/$PROJECT/github-actions/beam_go_sdk:${TAG}"
+          echo "GO_SDK_IMG=${IMG}" >> "$GITHUB_ENV"
+          ./gradlew :sdks:go:container:docker \
+            -Pdocker-repository-root=us.gcr.io/$PROJECT/github-actions \
+            -Pdocker-tag=${TAG} \
+            -PoverrideServiceAccount=beam-github-actions@apache-beam-testing.iam.gserviceaccount.com
+          docker push "${IMG}"
+          echo "Built and pushed ${IMG}"
+      # ---- Run the Gradle task (full suite) ----
+      - name: Run XVR GoUsingJava Dataflow task
         env:
-          USER: github-actions
-          CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
+          CLOUDSDK_CONFIG: ${{ env.CLOUDSDK_CONFIG }}
+          GO_SDK_IMG: ${{ env.GO_SDK_IMG }}
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
-          gradle-command: :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
+          gradle-command: >
+            :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
+            -PdockerImageRoot=gcr.io/apache-beam-testing/beam-sdk
+            --info --stacktrace
+      # ---- Cleanup Go image ----
+      - name: Cleanup Go image (optional)
+        if: always()
+        run: |
+          gcloud --quiet container images delete --force-delete-tags "$GO_SDK_IMG" || true
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
         if: ${{ !success() }}
         with:
           name: JUnit Test Results
           path: "**/build/reports/tests/"
+
       - name: Publish JUnit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
