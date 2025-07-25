@@ -525,7 +525,6 @@ createCrossLanguageValidatesRunnerTask(
     "--log-cli-level=INFO",
   ],
   goScriptOptions: [
-    "--experiments=use_unified_worker,use_runner_v2",
     "--runner dataflow",
     "--project ${gcpProject}",
     "--dataflow_project ${gcpProject}",
