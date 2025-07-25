@@ -74,4 +74,6 @@ jobs:
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
             -Ptest_filter=TestXLang_Prefix \
             -PdockerImageRoot=gcr.io/apache-beam-testing/beam-sdk \
-            --info --stacktrace
+            --info --stacktrace \
+            -x :sdks:python:setupVirtualenv \
+            -x :sdks:python:container:goBuild
