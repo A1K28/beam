@@ -21,6 +21,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ---- Prepare gcloud config dir ----
+      - name: Prepare gcloud config dir
+        run: |
+          CFG="$RUNNER_TEMP/gcloud"
+          mkdir -p "$CFG/logs"
+          echo "CLOUDSDK_CONFIG=$CFG" >> "$GITHUB_ENV"
+
         # ---- gcloud auth ----
       - name: Install gcloud CLI
         run: |
