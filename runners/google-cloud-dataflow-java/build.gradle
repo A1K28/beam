@@ -514,7 +514,7 @@ createCrossLanguageValidatesRunnerTask(
     "--region=${gcpRegion}",
     "--tempRoot=${dataflowValidatesTempRoot}",
     "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
-    "--sdk_harness_container_image_overrides=.*java.*,gcr.io/apache-beam-testing/beam-sdk/beam_java11_sdk:2.67.0.dev",
+    "--sdk_harness_container_image_overrides=.*java.*,gcr.io/apache-beam-testing/beam-sdk/beam_java11_sdk:2.68.0.dev",
   ],
   pytestOptions: [
     "--capture=no",
