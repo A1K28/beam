@@ -16,6 +16,8 @@ jobs:
       GCP_PROJECT: apache-beam-testing
       # if you need authentication, set this secret up in your repo
       GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      USER: github-actions
+      PROJECT: apache-beam-testing
 
     steps:
       - name: Checkout code
