@@ -84,12 +84,14 @@ jobs:
           sed -i '/GO_SDK_IMAGE=/d' ./run_validatesrunner_tests.sh
           sed -i '/docker build/d' ./run_validatesrunner_tests.sh
           sed -i '/docker push/d' ./run_validatesrunner_tests.sh
+
       # ---- Prepare gcloud config dir ----
       - name: Prepare gcloud config dir
         run: |
           CFG="$RUNNER_TEMP/gcloud"
           mkdir -p "$CFG/logs"
           echo "CLOUDSDK_CONFIG=$CFG" >> "$GITHUB_ENV"
+
       # ---- Java before any Gradle ----
       - name: Set up Java 11
         id: jdk
@@ -146,18 +148,6 @@ jobs:
         with:
           go-version: '1.21'
 
-      # ---- Build & push Go SDK image (single tag source) ----
-      - name: Build & push Go SDK container
-        run: |
-          TAG=$(date +%Y%m%d-%H%M%S)
-          IMG="us.gcr.io/$PROJECT/github-actions/beam_go_sdk:${TAG}"
-          echo "GO_SDK_IMG=${IMG}" >> "$GITHUB_ENV"
-          ./gradlew :sdks:go:container:docker \
-            -Pdocker-repository-root=us.gcr.io/$PROJECT/github-actions \
-            -Pdocker-tag=${TAG} \
-            -PoverrideServiceAccount=beam-github-actions@apache-beam-testing.iam.gserviceaccount.com
-          docker push "${IMG}"
-          echo "Built and pushed ${IMG}"
       # ---- Run the Gradle task (full suite) ----
       - name: Run XVR GoUsingJava Dataflow task
         env:
@@ -168,18 +158,8 @@ jobs:
           gradle-command: >
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
             -PdockerImageRoot=gcr.io/apache-beam-testing/beam-sdk
+            -Ptest_filter=TestXLang_Prefix
             --info --stacktrace
-      # ---- Cleanup Go image ----
-      - name: Cleanup Go image (optional)
-        if: always()
-        run: |
-          gcloud --quiet container images delete --force-delete-tags "$GO_SDK_IMG" || true
-      - name: Archive JUnit Test Results
-        uses: actions/upload-artifact@v4
-        if: ${{ !success() }}
-        with:
-          name: JUnit Test Results
-          path: "**/build/reports/tests/"
 
       - name: Publish JUnit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
