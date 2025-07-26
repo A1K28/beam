@@ -77,7 +77,7 @@ public class PubsubIOLT extends IOLoadTestBase {
   private static final double TOLERANCE_FRACTION = 0.005;
   private static final int NUMBER_OF_BUNDLES_FOR_LOCAL = 10;
   private static final int NUMBER_OF_BUNDLES_FOR_MEDIUM_AND_LARGE = 20;
-  private static final String READ_ELEMENT_METRIC_NAME = "read_count";
+  // private static final String READ_ELEMENT_METRIC_NAME = "read_count";
   private static final String MAP_RECORDS_STEP_NAME = "Map records";
   private static final String WRITE_TO_PUBSUB_STEP_NAME = "Write to PubSub";
   private static final Map<String, Configuration> TEST_CONFIGS_PRESET;
