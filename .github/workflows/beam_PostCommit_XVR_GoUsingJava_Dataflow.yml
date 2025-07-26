@@ -73,10 +73,39 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
+
+      # # ---- gcloud auth ----
+      # - name: Prepare gcloud config dir
+      #   run: |
+      #     CFG="$RUNNER_TEMP/gcloud"
+      #     mkdir -p "$CFG/logs"
+      #     echo "CLOUDSDK_CONFIG=$CFG" >> "$GITHUB_ENV"
+      # - name: Install gcloud CLI
+      #   run: |
+      #     mkdir -p "$CLOUDSDK_CONFIG/logs"
+      #     curl -sSL https://sdk.cloud.google.com | bash
+      #     echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+      #     source "$HOME/google-cloud-sdk/path.bash.inc"
+      #     gcloud --version
+      # - name: gcloud auth (service account) + docker login
+      #   run: |
+      #     echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
+      #     gcloud auth activate-service-account --key-file="$HOME/sa.json"
+      #     gcloud config set project $PROJECT
+      #     # === Add this ===
+      #     echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
+      #     # ================
+          
+      #     # your existing docker login bits…
+      #     gcloud auth configure-docker us.gcr.io -q
+      #     echo '${{ secrets.GCP_SA_KEY }}' \
+      #       | docker login -u _json_key --password-stdin https://us.gcr.io
+
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
-          python-version: default
+          java-version: default
+          go-version: default
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: GCloud Docker credential helper
