@@ -76,13 +76,27 @@ jobs:
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
-      # ─── AUTHENTICATE TO GCP ────────────────────────────────────────────
-      - name: Setup GCP credentials
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: apache-beam-testing
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: true
+       # ---- gcloud auth ----
+      - name: Install gcloud CLI
+        run: |
+          mkdir -p "$CLOUDSDK_CONFIG/logs"
+          curl -sSL https://sdk.cloud.google.com | bash
+          echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+          source "$HOME/google-cloud-sdk/path.bash.inc"
+          gcloud --version
+      - name: gcloud auth (service account) + docker login
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
+          gcloud auth activate-service-account --key-file="$HOME/sa.json"
+          gcloud config set project $PROJECT
+          # === Add this ===
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
+          # ================
+          
+          # your existing docker login bits…
+          gcloud auth configure-docker us.gcr.io -q
+          echo '${{ secrets.GCP_SA_KEY }}' \
+            | docker login -u _json_key --password-stdin https://us.gcr.io
       - name: run PubSub Performance test
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
