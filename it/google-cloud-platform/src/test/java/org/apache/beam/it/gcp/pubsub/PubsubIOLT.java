@@ -224,7 +224,7 @@ public class PubsubIOLT extends IOLoadTestBase {
             project, region, readLaunchInfo.jobId());
 
     // print every metric name so you can pick the right one
-    System.out.println("Printing Metrics:")
+    System.out.println("Printing Metrics:");
     allMetrics.keySet().forEach(System.out::println);
 
     try {
