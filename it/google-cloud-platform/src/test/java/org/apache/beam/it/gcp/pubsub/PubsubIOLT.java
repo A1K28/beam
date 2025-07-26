@@ -219,14 +219,6 @@ public class PubsubIOLT extends IOLoadTestBase {
         pipelineOperator.waitUntilDone(
             createConfig(readLaunchInfo, Duration.ofMinutes(5)));
 
-    Map<String, Double> allMetrics =
-        pipelineLauncher.getMetrics(
-            project, region, readLaunchInfo.jobId());
-
-    // print every metric name so you can pick the right one
-    System.out.println("Printing Metrics:");
-    allMetrics.keySet().forEach(System.out::println);
-
     try {
       // Check the initial launch didn't fail
       assertNotEquals(PipelineOperator.Result.LAUNCH_FAILED, readResult);
@@ -241,7 +233,15 @@ public class PubsubIOLT extends IOLoadTestBase {
     }
 
     // check metrics
-    double numRecords = 10;
+    String elementCountKey = "Counting element/element_count";
+    double numRecords =
+        pipelineLauncher.getMetric(
+            project,
+            region,
+            readLaunchInfo.jobId(),
+            elementCountKey);
+
+    // double numRecords =
         // pipelineLauncher.getMetric(
         //     project,
         //     region,
@@ -341,8 +341,8 @@ public class PubsubIOLT extends IOLoadTestBase {
     }
 
     readPipeline
-        .apply("Read from PubSub", read)
-        .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
+        .apply("Read from PubSub", read);
+        // .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
 
     PipelineLauncher.LaunchConfig readOptions =
         PipelineLauncher.LaunchConfig.builder("read-pubsub")
