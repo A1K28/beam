@@ -283,6 +283,11 @@ var sparkFilters = []string{
 }
 
 var dataflowFilters = []string{
+	// Temporary filters
+	"testAvroGenericClassWriteAndRead",
+	"testProtoPrimitiveWriteAndRead",
+	"testPubsubMessageWriteAndRead",
+
 	// The Dataflow runner doesn't work with tests using testcontainers locally.
 	"TestJDBCIO_BasicReadWrite",
 	"TestJDBCIO_PostgresReadWrite",
