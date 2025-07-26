@@ -99,6 +99,11 @@ jobs:
         run: |
           gcloud auth configure-docker us.gcr.io --quiet
 
+      - name: Write SA key and set GOOGLE_APPLICATION_CREDENTIALS
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> $GITHUB_ENV
+
       - name: run XVR GoUsingJava Dataflow script
         env:
           USER: github-actions
