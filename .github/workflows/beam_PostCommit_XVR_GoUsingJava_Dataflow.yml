@@ -109,7 +109,10 @@ jobs:
           USER: github-actions
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
-          gradle-command: :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
+          gradle-command: |
+            :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
+            :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
+      
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
         if: ${{ !success() }}
