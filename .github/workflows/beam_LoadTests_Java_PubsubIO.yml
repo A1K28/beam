@@ -73,6 +73,25 @@ jobs:
         uses: ./.github/actions/setup-environment-action
         with:
           java-version: default
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: apache-beam-testing
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+      - name: Set writable gcloud config
+        run: |
+          mkdir -p "$RUNNER_TEMP/gcloud"
+          echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud" >> $GITHUB_ENV
+      - name: Authenticate Docker with gcloud
+        run: |
+          gcloud auth configure-docker us.gcr.io --quiet
+      - name: Write SA key and set GOOGLE_APPLICATION_CREDENTIALS
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> $GITHUB_ENV
+
       - name: run PubSub Performance test
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
