@@ -217,7 +217,7 @@ public class PubsubIOLT extends IOLoadTestBase {
     PipelineLauncher.LaunchInfo readLaunchInfo = testRead(format);
     PipelineOperator.Result readResult =
         pipelineOperator.waitUntilDone(
-            createConfig(readLaunchInfo, Duration.ofMinutes(configuration.pipelineTimeout)));
+            createConfig(readLaunchInfo, Duration.ofMinutes(5)));
 
     try {
       // Check the initial launch didn't fail
@@ -233,12 +233,12 @@ public class PubsubIOLT extends IOLoadTestBase {
     }
 
     // check metrics
-    double numRecords =
-        pipelineLauncher.getMetric(
-            project,
-            region,
-            readLaunchInfo.jobId(),
-            getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
+    MetricName elementCountMetric = MetricName.create("element_count", "Counting element", 0);
+    double numRecords = pipelineLauncher.getMetric(
+        project,
+        region,
+        readLaunchInfo.jobId(),
+        elementCountMetric);
 
     // Assert that actual data is within tolerance of expected data number since there might be
     // duplicates when testing big amount of data
