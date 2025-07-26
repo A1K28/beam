@@ -82,13 +82,13 @@ jobs:
             --quiet
 
       # 2) Launch expansion service in background
-      - name: Start expansion‐service
+      - name: Start expansion‑service
         run: |
-          mkdir -p "$EXP_DIR"
+          mkdir -p "$RUNNER_TEMP/expansion-service"
           nohup java -jar \
             sdks/java/io/expansion-service/build/libs/beam-sdks-java-io-expansion-service-*.jar \
             --port=8099 \
-            > "$EXP_DIR/out.log" 2>&1 &
+            > "$RUNNER_TEMP/expansion-service/out.log" 2>&1 &
 
       # 3) Run Go integration test directly
       - name: Run TestXLang_Prefix
