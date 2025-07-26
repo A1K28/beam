@@ -90,25 +90,18 @@ jobs:
             --port=8099 \
             > "$RUNNER_TEMP/expansion-service/out.log" 2>&1 &
 
-      # 3) Run Go integration test directly
-      - name: Run TestXLang_Prefix
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      - name: Invoke Go test
-        working-directory: sdks/go/test
+      - name: Run Go XLang Prefix test
         run: |
-          # point at our local expansion service, let Dataflow pick its SDK harness from the public repo
-          go test . \
+          go test ./sdks/go/test/integration/xlang \
             -timeout 3h \
             -v \
             -run ^TestXLang_Prefix$ \
             -- \
-            --runner=dataflow \
-            --project=$GCP_PROJECT \
-            --region=$GCP_REGION \
-            --environment_type=DOCKER \
-            --environment_config=us.gcr.io/apache-beam-testing/beam-sdk/java:latest \
-            --expansion_addr=localhost:8099 \
-            --staging_location=gs://temp-storage-for-end-to-end-tests/staging \
-            --temp_location=gs://temp-storage-for-end-to-end-tests/temp
+              --runner=dataflow \
+              --project="${GCP_PROJECT}" \
+              --region="${GCP_REGION}" \
+              --environment_type=DOCKER \
+              --environment_config=us.gcr.io/apache-beam-testing/beam-sdk/java:latest \
+              --expansion_addr=localhost:8099 \
+              --staging_location=gs://temp-storage-for-end-to-end-tests/staging \
+              --temp_location=gs://temp-storage-for-end-to-end-tests/temp
