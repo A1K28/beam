@@ -47,6 +47,7 @@ env:
   GRADLE_ENTERPRISE_CACHE_PASSWORD: ${{ secrets.GE_CACHE_PASSWORD }}
   INFLUXDB_USER: ${{ secrets.INFLUXDB_USER }}
   INFLUXDB_USER_PASSWORD: ${{ secrets.INFLUXDB_USER_PASSWORD }}
+  PROJECT: apache-beam-testing
 
 jobs:
   beam_LoadTests_Java_PubsubIO:
@@ -76,7 +77,13 @@ jobs:
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
-       # ---- gcloud auth ----
+      # ---- Prepare gcloud config dir ----
+      - name: Prepare gcloud config dir
+        run: |
+          CFG="$RUNNER_TEMP/gcloud"
+          mkdir -p "$CFG/logs"
+          echo "CLOUDSDK_CONFIG=$CFG" >> "$GITHUB_ENV"
+      # ---- gcloud auth ----
       - name: Install gcloud CLI
         run: |
           mkdir -p "$CLOUDSDK_CONFIG/logs"
