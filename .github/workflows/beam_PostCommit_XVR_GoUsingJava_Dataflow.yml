@@ -104,14 +104,17 @@ jobs:
           echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> $GITHUB_ENV
 
-      - name: run XVR GoUsingJava Dataflow script
+      - name: Build & push Java SDK harness container
+        run: ./gradlew :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
+
+      - name: Run cross‑language GoUsingJava Dataflow tests
+        run: |
+          ./gradlew \
+            :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
+            --info \
+            --stacktrace
         env:
           USER: github-actions
-        uses: ./.github/actions/gradle-command-self-hosted-action
-        with:
-          gradle-command: |
-            :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
-            :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
       
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
