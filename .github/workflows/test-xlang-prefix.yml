@@ -67,28 +67,31 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      
-      # 1) Build just the expansion service JAR
-      - name: Build Java expansion‐service
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '11'
-      - name: Run Gradle for expansion‐service only
-        run: |
-          ./gradlew \
-            :sdks:java:io:expansion-service:shadowJar \
-            --no-daemon \
-            --quiet
 
-      # 2) Launch expansion service in background
-      - name: Start expansion‑service
+      - name: Build Java expansion‑service
         run: |
-          mkdir -p "$RUNNER_TEMP/expansion-service"
-          nohup java -jar \
-            sdks/java/io/expansion-service/build/libs/beam-sdks-java-io-expansion-service-*.jar \
-            --port=8099 \
-            > "$RUNNER_TEMP/expansion-service/out.log" 2>&1 &
+          ./gradlew :sdks:java:io:expansion-service:shadowJar --no-daemon --quiet
+          echo "Built files:"
+          ls -l sdks/java/io/expansion-service/build/libs/
+
+      - name: Start expansion‑service and verify
+        run: |
+          # find the built JAR
+          JAR=$(find sdks/java/io/expansion-service/build/libs -name "*shadow*.jar" | head -1)
+          echo "Launching Expansion Service from: $JAR"
+          nohup java -jar "$JAR" --port=8099 \
+            > "$RUNNER_TEMP/expansion.out" 2>&1 &
+
+          # give it a couple seconds to come up
+          sleep 3
+
+          # prove it’s listening
+          if ! lsof -iTCP:8099 -sTCP:LISTEN; then
+            echo "ERROR: expansion service failed to bind on port 8099"
+            echo "==== expansion.out logs ===="
+            cat "$RUNNER_TEMP/expansion.out"
+            exit 1
+          fi
 
       - name: Run Go XLang Prefix test
         working-directory: sdks/go
