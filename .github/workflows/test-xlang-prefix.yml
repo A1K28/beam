@@ -74,37 +74,15 @@ jobs:
           echo "Built files:"
           ls -l sdks/java/io/expansion-service/build/libs/
 
-      - name: Start expansion‑service and verify
-        run: |
-          echo "Contents of build/libs/:"
-          ls -l sdks/java/io/expansion-service/build/libs/
-
-          JAR=$(ls sdks/java/io/expansion-service/build/libs/*.jar | head -1)
-          if [[ -z "$JAR" ]]; then
-            echo "ERROR: no JAR found in build/libs!"
-            exit 1
-          fi
-
-          echo "Launching Expansion Service from: $JAR"
-          nohup java -jar "$JAR" 8099 \
-            > "$RUNNER_TEMP/expansion.out" 2>&1 &
-
-          sleep 5
-
-          if ! netstat -tln 2>/dev/null | grep -q ':8099'; then
-            echo "ERROR: expansion service failed to bind on port 8099"
-            echo "==== expansion.out logs ===="
-            cat "$RUNNER_TEMP/expansion.out"
-            exit 1
-          fi
-
-          echo "✔ expansion‑service is listening on 8099"
-
-
+      
       - name: Run Go XLang Prefix test
         working-directory: sdks/go
+        env:
+          GCP_PROJECT: apache-beam-testing
+          GCP_REGION: us-central1
         run: |
           go mod download
+
           go test \
             -timeout 3h \
             -v \
@@ -116,6 +94,7 @@ jobs:
               --region="${GCP_REGION}" \
               --environment_type=DOCKER \
               --environment_config=us.gcr.io/apache-beam-testing/beam-sdk/java:latest \
+              --expansion_jar=sdks/java/io/expansion-service/build/libs/beam-sdks-java-io-expansion-service-2.68.0-SNAPSHOT.jar:8099 \
               --expansion_addr=test=localhost:8099 \
               --staging_location=gs://temp-storage-for-end-to-end-tests/staging \
               --temp_location=gs://temp-storage-for-end-to-end-tests/temp
