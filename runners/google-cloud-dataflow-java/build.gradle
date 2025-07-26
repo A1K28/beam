@@ -533,7 +533,7 @@ createCrossLanguageValidatesRunnerTask(
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    "--sdk_overrides=.*java.*,gcr.io/cloud-dataflow/v1beta3:${project.sdk_version}",
+    "--sdk_overrides=.*java.*,${dockerJavaImageContainer}:${dockerTag}",
   ],
 )
 
