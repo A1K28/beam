@@ -148,13 +148,6 @@ jobs:
         with:
           go-version: '1.21'
 
-      # - name: Run only TestXLang_Prefix
-      #   working-directory: ./sdks/go
-      #   run: |
-      #     go test ./test/integration/xlang \
-      #       -timeout 30m \
-      #       -run ^TestXLang_Prefix$
-
       # ---- Run the Gradle task (full suite) ----
       - name: Run XVR GoUsingJava Dataflow task
         env:

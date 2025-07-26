@@ -1,10 +1,11 @@
 name: CI – TestXLang_Prefix
 
 on:
-  push:
-    # adjust paths if you want to limit when it runs
-    paths:
-      - '.github/workflows/test-xlang-prefix.yml'
+  workflow_dispath:
+#   push:
+#     # adjust paths if you want to limit when it runs
+#     paths:
+#       - '.github/workflows/test-xlang-prefix.yml'
 
 jobs:
   test-xlang-prefix:
@@ -74,7 +75,7 @@ jobs:
           echo "Built files:"
           ls -l sdks/java/io/expansion-service/build/libs/
 
-      
+
       - name: Run Go XLang Prefix test
         working-directory: sdks/go
         env:
