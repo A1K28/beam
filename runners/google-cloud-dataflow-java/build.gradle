@@ -502,37 +502,63 @@ createCrossLanguageValidatesRunnerTask(
   numParallelTests: Integer.MAX_VALUE,
   needsSdkLocation: true,
   semiPersistDir: "/var/opt/google",
-  pythonPipelineOptions: [
+
+  // REPLACE pythonPipelineOptions, javaPipelineOptions, goScriptOptions with this:
+  pipelineOptions: [
     "--experiments=use_unified_worker,use_runner_v2",
     "--runner=TestDataflowRunner",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
-    "--sdk_harness_container_image_overrides=.*java.*,${dockerJavaImageContainer}:${dockerTag}",
-  ],
-  javaPipelineOptions: [
-    "--experiments=use_unified_worker,use_runner_v2",
-    "--runner=TestDataflowRunner",
-    "--project=${gcpProject}",
-    "--region=${gcpRegion}",
-    "--tempRoot=${dataflowValidatesTempRoot}",
-    "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
-    "--sdk_harness_container_image_overrides=.*java.*,gcr.io/apache-beam-testing/beam-sdk/beam_java11_sdk:2.68.0.dev",
-  ],
-  pytestOptions: [
-    "--capture=no",
-    "--numprocesses=8",
-    "--timeout=4500",
-    "--log-cli-level=INFO",
-  ],
-  goScriptOptions: [
-    "--runner dataflow",
-    "--project ${gcpProject}",
-    "--dataflow_project ${gcpProject}",
-    "--region ${gcpRegion}",
-    "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
-  ],
+    "--sdk_harness_container_image_overrides=beam_go_sdk=${goSdkImage},beam_java11_sdk=${javaSdkImage},beam_java_expansion_service=${expansionServiceImage}",
+    "--tests=./test/integration/xlang",
+    "--sdk_overrides=.*java.*,${javaSdkImage}"
+  ]
 )
+
+// createCrossLanguageValidatesRunnerTask(
+//   startJobServer: setupXVR,
+//   cleanupJobServer: cleanupXVR,
+//   classpath: configurations.validatesRunner,
+//   numParallelTests: Integer.MAX_VALUE,
+//   needsSdkLocation: true,
+//   semiPersistDir: "/var/opt/google",
+//   pythonPipelineOptions: [
+//     "--experiments=use_unified_worker,use_runner_v2",
+//     "--runner=TestDataflowRunner",
+//     "--project=${gcpProject}",
+//     "--region=${gcpRegion}",
+//     "--sdk_harness_container_image_overrides=\
+// beam_go_sdk=gcr.io/apache-beam-testing/beam-sdk/beam_go_sdk:2.68.0.dev,\
+// beam_java11_sdk=gcr.io/apache-beam-testing/beam-sdk/beam_java11_sdk:2.68.0.dev,\
+// beam_java_expansion_service=gcr.io/apache-beam-testing/beam-sdk/beam_java_expansion_service:2.68.0.dev",
+//   ],
+//   javaPipelineOptions: [
+//     "--experiments=use_unified_worker,use_runner_v2",
+//     "--runner=TestDataflowRunner",
+//     "--project=${gcpProject}",
+//     "--region=${gcpRegion}",
+//     "--tempRoot=${dataflowValidatesTempRoot}",
+//     "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
+//     "--sdk_harness_container_image_overrides=\
+// beam_go_sdk=gcr.io/apache-beam-testing/beam-sdk/beam_go_sdk:2.68.0.dev,\
+// beam_java11_sdk=gcr.io/apache-beam-testing/beam-sdk/beam_java11_sdk:2.68.0.dev,\
+// beam_java_expansion_service=gcr.io/apache-beam-testing/beam-sdk/beam_java_expansion_service:2.68.0.dev",
+//   ],
+//   pytestOptions: [
+//     "--capture=no",
+//     "--numprocesses=8",
+//     "--timeout=4500",
+//     "--log-cli-level=INFO",
+//   ],
+//   goScriptOptions: [
+//     "--runner dataflow",
+//     "--project ${gcpProject}",
+//     "--dataflow_project ${gcpProject}",
+//     "--region ${gcpRegion}",
+//     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
+//     "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
+//   ],
+// )
 
 task validatesRunnerV2 {
   group = "Verification"

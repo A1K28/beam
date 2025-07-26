@@ -148,21 +148,11 @@ jobs:
         with:
           go-version: '1.21'
 
-      # ---- Run the Gradle task (full suite) ----
       - name: Run XVR GoUsingJava Dataflow task
-        env:
-          CLOUDSDK_CONFIG: ${{ env.CLOUDSDK_CONFIG }}
-          GO_SDK_IMG: ${{ env.GO_SDK_IMG }}
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: >
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
-            -PdockerImageRoot=gcr.io/apache-beam-testing/beam-sdk
-            -Ptest_filter=TestXLang_Prefix
-            -PpipelineOptions="[
-              \"--sdkHarnessContainerImageOverride=.*java.*,<your‑debug‑harness‑image>\",
-              \"--workerLogLevelOverrides=org.apache.beam.runners.fnexecution.data=DEBUG\"
-            ]"
             --info --stacktrace
 
       - name: Publish JUnit Test Results
