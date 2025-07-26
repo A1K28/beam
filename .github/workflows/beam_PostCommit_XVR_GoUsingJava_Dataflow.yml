@@ -153,7 +153,7 @@ jobs:
         with:
           gradle-command: >
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
-            --info --stacktrace
+            --info --stacktrace --console=verbose
 
       - name: Publish JUnit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
