@@ -104,6 +104,6 @@ jobs:
               --region="${GCP_REGION}" \
               --environment_type=DOCKER \
               --environment_config=us.gcr.io/apache-beam-testing/beam-sdk/java:latest \
-              --expansion_addr=localhost:8099 \
+              --expansion_addr=test:localhost:8099 \
               --staging_location=gs://temp-storage-for-end-to-end-tests/staging \
               --temp_location=gs://temp-storage-for-end-to-end-tests/temp
