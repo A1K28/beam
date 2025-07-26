@@ -50,10 +50,11 @@ env:
   DEVELOCITY_ACCESS_KEY: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
   GRADLE_ENTERPRISE_CACHE_USERNAME: ${{ secrets.GE_CACHE_USERNAME }}
   GRADLE_ENTERPRISE_CACHE_PASSWORD: ${{ secrets.GE_CACHE_PASSWORD }}
-  CLOUDSDK_CONFIG: ${{ runner.temp }}/gcloud
 
 jobs:
   beam_PostCommit_XVR_GoUsingJava_Dataflow:
+    env:
+      CLOUDSDK_CONFIG: ${{ runner.temp }}/gcloud
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request_target' ||
