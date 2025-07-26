@@ -71,6 +71,13 @@ jobs:
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
+      # ─── AUTHENTICATE TO GCP ────────────────────────────────────────────
+      - name: Setup GCP credentials
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: apache-beam-testing
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
       - name: run PubSub Performance test
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
