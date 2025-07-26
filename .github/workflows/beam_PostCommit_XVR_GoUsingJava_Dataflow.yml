@@ -53,8 +53,6 @@ env:
 
 jobs:
   beam_PostCommit_XVR_GoUsingJava_Dataflow:
-    env:
-      CLOUDSDK_CONFIG: ${{ runner.temp }}/gcloud
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request_target' ||
@@ -91,6 +89,11 @@ jobs:
           project_id: apache-beam-testing
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
+
+      - name: Set writable gcloud config
+        run: |
+          mkdir -p "$RUNNER_TEMP/gcloud"
+          echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud" >> $GITHUB_ENV
 
       - name: Authenticate Docker with gcloud
         run: |
