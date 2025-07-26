@@ -76,22 +76,33 @@ jobs:
 
       - name: Start expansion‑service and verify
         run: |
-          # find the built JAR
-          JAR=$(find sdks/java/io/expansion-service/build/libs -name "*shadow*.jar" | head -1)
+          # List what we built
+          echo "Contents of build/libs/:"
+          ls -l sdks/java/io/expansion-service/build/libs/
+
+          # Pick the first .jar we see
+          JAR=$(ls sdks/java/io/expansion-service/build/libs/*.jar | head -1)
+          if [[ -z "$JAR" ]]; then
+            echo "ERROR: no JAR found in build/libs!"
+            exit 1
+          fi
+
           echo "Launching Expansion Service from: $JAR"
           nohup java -jar "$JAR" --port=8099 \
             > "$RUNNER_TEMP/expansion.out" 2>&1 &
 
-          # give it a couple seconds to come up
-          sleep 3
+          # give it a few seconds
+          sleep 5
 
-          # prove it’s listening
-          if ! lsof -iTCP:8099 -sTCP:LISTEN; then
+          # verify with netstat instead of lsof
+          if ! netstat -tln 2>/dev/null | grep -q ':8099'; then
             echo "ERROR: expansion service failed to bind on port 8099"
             echo "==== expansion.out logs ===="
             cat "$RUNNER_TEMP/expansion.out"
             exit 1
           fi
+
+          echo "✔ expansion‑service is listening on 8099"
 
       - name: Run Go XLang Prefix test
         working-directory: sdks/go
