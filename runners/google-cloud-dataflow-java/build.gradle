@@ -52,8 +52,8 @@ evaluationDependsOn(":sdks:java:container:java11")
 
 ext.dataflowLegacyEnvironmentMajorVersion = '8'
 ext.dataflowFnapiEnvironmentMajorVersion = '8'
-ext.dataflowLegacyContainerVersion = 'beam-master-20250605'
-ext.dataflowFnapiContainerVersion = 'beam-master-20250605'
+ext.dataflowFnapiContainerVersion = project.sdk_version
+ext.dataflowLegacyContainerVersion = project.sdk_version
 ext.dataflowContainerBaseRepository = 'gcr.io/cloud-dataflow/v1beta3'
 
 def dataflowWorkerServiceAccount = 'beam-github-actions@apache-beam-testing.iam.gserviceaccount.com'
@@ -507,6 +507,7 @@ createCrossLanguageValidatesRunnerTask(
   semiPersistDir: "/var/opt/google",
   pythonPipelineOptions: [
     "--runner=TestDataflowRunner",
+    "--experiments=beam_fn_api_use_envelope_coders",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
     "--serviceAccount=${dataflowWorkerServiceAccount}",
@@ -514,6 +515,7 @@ createCrossLanguageValidatesRunnerTask(
   ],
   javaPipelineOptions: [
     "--runner=TestDataflowRunner",
+    "--experiments=beam_fn_api_use_envelope_coders",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
     "--serviceAccount=${dataflowWorkerServiceAccount}",
@@ -529,11 +531,12 @@ createCrossLanguageValidatesRunnerTask(
   ],
   goScriptOptions: [
     "--runner dataflow",
+    "--experiments=beam_fn_api_use_envelope_coders",
     "--project ${gcpProject}",
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
+    "--sdk_overrides=.*java.*,gcr.io/cloud-dataflow/v1beta3:${project.sdk_version}",
   ],
 )
 

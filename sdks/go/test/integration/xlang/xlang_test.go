@@ -120,6 +120,10 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
+	fmt.Println("=== XLang DEBUG ===")
+	fmt.Println("Expansion Address:", expansionAddr)
+	fmt.Println("GOOGLE_APPLICATION_CREDENTIALS:", os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+
 	p := beam.NewPipeline()
 	s := p.Root()
 
