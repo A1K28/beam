@@ -197,7 +197,7 @@ public class PubsubIOLT extends IOLoadTestBase {
     testWriteAndRead();
   }
 
-  public void testWriteAndRead() throws IOException {
+  public void testWriteAndRead() throws IOException, InterruptedException {
     if (configuration.exportMetricsToInfluxDB) {
       influxDBSettings =
           InfluxDBSettings.builder()
