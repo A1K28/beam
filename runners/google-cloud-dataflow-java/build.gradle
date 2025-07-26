@@ -507,7 +507,6 @@ createCrossLanguageValidatesRunnerTask(
   semiPersistDir: "/var/opt/google",
   pythonPipelineOptions: [
     "--runner=TestDataflowRunner",
-    "--experiments=beam_fn_api_use_envelope_coders",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
     "--serviceAccount=${dataflowWorkerServiceAccount}",
@@ -515,7 +514,6 @@ createCrossLanguageValidatesRunnerTask(
   ],
   javaPipelineOptions: [
     "--runner=TestDataflowRunner",
-    "--experiments=beam_fn_api_use_envelope_coders",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
     "--serviceAccount=${dataflowWorkerServiceAccount}",
@@ -531,7 +529,6 @@ createCrossLanguageValidatesRunnerTask(
   ],
   goScriptOptions: [
     "--runner dataflow",
-    "--experiments=beam_fn_api_use_envelope_coders",
     "--project ${gcpProject}",
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
