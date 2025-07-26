@@ -14,10 +14,10 @@ jobs:
     env:
       # replace with your GCP project if needed
       GCP_PROJECT: apache-beam-testing
+      GCP_REGION: us-central1
       # if you need authentication, set this secret up in your repo
       GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
       USER: github-actions
-      PROJECT: apache-beam-testing
 
     steps:
       - name: Checkout code
@@ -43,7 +43,7 @@ jobs:
         run: |
           echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
           gcloud auth activate-service-account --key-file="$HOME/sa.json"
-          gcloud config set project $PROJECT
+          gcloud config set project $GCP_PROJECT
           # === Add this ===
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
           # ================
@@ -105,6 +105,6 @@ jobs:
               --region="${GCP_REGION}" \
               --environment_type=DOCKER \
               --environment_config=us.gcr.io/apache-beam-testing/beam-sdk/java:latest \
-              --expansion_addr=test:localhost:8099 \
+              --expansion_addr=test=localhost:8099 \
               --staging_location=gs://temp-storage-for-end-to-end-tests/staging \
               --temp_location=gs://temp-storage-for-end-to-end-tests/temp
