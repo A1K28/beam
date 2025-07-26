@@ -91,9 +91,10 @@ jobs:
             > "$RUNNER_TEMP/expansion-service/out.log" 2>&1 &
 
       - name: Run Go XLang Prefix test
-        working-directory: sdks/go/test
+        working-directory: sdks/go
         run: |
-          go test . \
+          go mod download
+          go test ./test/integration/xlang \
             -timeout 3h \
             -v \
             -run ^TestXLang_Prefix$ \
