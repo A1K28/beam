@@ -56,6 +56,8 @@ ext.dataflowLegacyContainerVersion = 'beam-master-20250605'
 ext.dataflowFnapiContainerVersion = 'beam-master-20250605'
 ext.dataflowContainerBaseRepository = 'gcr.io/cloud-dataflow/v1beta3'
 
+def dataflowWorkerServiceAccount = 'beam-github-actions@apache-beam-testing.iam.gserviceaccount.com'
+
 processResources {
   filter org.apache.tools.ant.filters.ReplaceTokens, tokens: [
     'dataflow.legacy_environment_major_version' : project.ext.dataflowFnapiEnvironmentMajorVersion,
@@ -178,6 +180,7 @@ def runnerV2PipelineOptions = [
   "--runner=TestDataflowRunner",
   "--project=${gcpProject}",
   "--region=${gcpRegion}",
+  "--serviceAccount=${dataflowWorkerServiceAccount}",
   "--tempRoot=${dataflowValidatesTempRoot}",
   "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
   "--experiments=use_unified_worker,use_runner_v2",
@@ -506,12 +509,14 @@ createCrossLanguageValidatesRunnerTask(
     "--runner=TestDataflowRunner",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
+    "--serviceAccount=${dataflowWorkerServiceAccount}",
     "--sdk_harness_container_image_overrides=.*java.*,${dockerJavaImageContainer}:${dockerTag}",
   ],
   javaPipelineOptions: [
     "--runner=TestDataflowRunner",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
+    "--serviceAccount=${dataflowWorkerServiceAccount}",
     "--tempRoot=${dataflowValidatesTempRoot}",
     "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
     "--sdkHarnessContainerImageOverrides=.*python.*,${dockerPythonImageContainer}:${dockerTag}",

@@ -106,9 +106,10 @@ jobs:
         with:
           java-version: default
           go-version: default
+          python-version: default
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-        
+
       - name: Setup gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
