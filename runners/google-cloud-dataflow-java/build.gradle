@@ -52,6 +52,9 @@ evaluationDependsOn(":sdks:java:container:java11")
 
 ext.dataflowLegacyEnvironmentMajorVersion = '8'
 ext.dataflowFnapiEnvironmentMajorVersion = '8'
+ext.dataflowLegacyContainerVersion = 'beam-master-20250605'
+ext.dataflowFnapiContainerVersion = 'beam-master-20250605'
+ext.dataflowContainerBaseRepository = 'gcr.io/cloud-dataflow/v1beta3'
 
 processResources {
   filter org.apache.tools.ant.filters.ReplaceTokens, tokens: [
@@ -154,10 +157,6 @@ def dockerPythonImageContainer = "${dockerImageRoot}/python"
 def dockerTag = new Date().format('yyyyMMddHHmmss')
 ext.dockerJavaImageName = "${dockerJavaImageContainer}:${dockerTag}"
 ext.dockerPythonImageName = "${dockerPythonImageContainer}:${dockerTag}"
-
-ext.dataflowContainerBaseRepository = dockerImageRoot
-ext.dataflowLegacyContainerVersion  = dockerTag
-ext.dataflowFnapiContainerVersion   = dockerTag
 
 def legacyPipelineOptions = [
   "--runner=TestDataflowRunner",
@@ -529,6 +528,7 @@ createCrossLanguageValidatesRunnerTask(
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
+    "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
   ],
 )
 
