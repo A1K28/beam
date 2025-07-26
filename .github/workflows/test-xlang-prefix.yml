@@ -94,10 +94,11 @@ jobs:
         working-directory: sdks/go
         run: |
           go mod download
-          go test ./test/integration/xlang \
+          go test \
             -timeout 3h \
             -v \
             -run ^TestXLang_Prefix$ \
+            ./test/integration/xlang \
             -- \
               --runner=dataflow \
               --project="${GCP_PROJECT}" \
