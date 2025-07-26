@@ -7,28 +7,67 @@ on:
       - '.github/workflows/test-xlang-prefix.yml'
 
 jobs:
-  go-xlang-prefix:
-    name: Run Go XLang Prefix Test
+  test-xlang-prefix:
+    name: Run TestXLang_Prefix
     runs-on: [self-hosted, linux]
 
     env:
+      # replace with your GCP project if needed
       GCP_PROJECT: apache-beam-testing
-      GCP_REGION: us-central1
-      # Where we’ll stage expansion‐service logs/etc.
-      EXP_DIR: $RUNNER_TEMP/expansion-service
+      # if you need authentication, set this secret up in your repo
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      USER: github-actions
+      PROJECT: apache-beam-testing
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Authenticate to GCP (for Dataflow)
-      - name: Prepare gcloud
+      # ---- Prepare gcloud config dir ----
+      - name: Prepare gcloud config dir
         run: |
+          CFG="$RUNNER_TEMP/gcloud"
+          mkdir -p "$CFG/logs"
+          echo "CLOUDSDK_CONFIG=$CFG" >> "$GITHUB_ENV"
+
+        # ---- gcloud auth ----
+      - name: Install gcloud CLI
+        run: |
+          mkdir -p "$CLOUDSDK_CONFIG/logs"
           curl -sSL https://sdk.cloud.google.com | bash
           echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
-          gcloud --quiet auth activate-service-account --key-file <(echo "${{ secrets.GCP_SA_KEY }}")
-          gcloud config set project $GCP_PROJECT
+          source "$HOME/google-cloud-sdk/path.bash.inc"
+          gcloud --version
 
+      - name: gcloud auth (service account) + docker login
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
+          gcloud auth activate-service-account --key-file="$HOME/sa.json"
+          gcloud config set project $PROJECT
+          # === Add this ===
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
+          # ================
+          
+          # your existing docker login bits…
+          gcloud auth configure-docker us.gcr.io -q
+          echo '${{ secrets.GCP_SA_KEY }}' \
+            | docker login -u _json_key --password-stdin https://us.gcr.io
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Add JAVA_HOME to PATH
+        run: |
+          echo "${{ steps.setup-java.outputs.path }}/bin" >> $GITHUB_PATH
+          echo "JAVA_HOME=${{ steps.setup-java.outputs.path }}" >> $GITHUB_ENV
+
+      - name: Set up Go 1.21
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
       # 1) Build just the expansion service JAR
       - name: Build Java expansion‐service
         uses: actions/setup-java@v4
