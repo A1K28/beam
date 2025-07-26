@@ -308,7 +308,7 @@ public class PubsubIOLT extends IOLoadTestBase {
             .addParameter("runner", configuration.runner)
             .addParameter("streaming", "true")
             .addParameter("numWorkers", String.valueOf(configuration.numWorkers))
-            .addParameter("experiments", "use_runner_v2")
+            // .addParameter("experiments", "use_runner_v2")
             .build();
 
     return pipelineLauncher.launch(project, region, writeOptions);
@@ -343,7 +343,7 @@ public class PubsubIOLT extends IOLoadTestBase {
             .addParameter("runner", configuration.runner)
             .addParameter("streaming", "true")
             .addParameter("numWorkers", String.valueOf(configuration.numWorkers))
-            .addParameter("experiments", "use_runner_v2")
+            // .addParameter("experiments", "use_runner_v2")
             .build();
 
     return pipelineLauncher.launch(project, region, readOptions);
