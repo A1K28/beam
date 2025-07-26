@@ -56,6 +56,12 @@ ext.dataflowLegacyContainerVersion = 'beam-master-20250605'
 ext.dataflowFnapiContainerVersion = 'beam-master-20250605'
 ext.dataflowContainerBaseRepository = 'gcr.io/cloud-dataflow/v1beta3'
 
+ext {
+  goSdkImage             = "gcr.io/apache-beam-testing/beam-sdk/beam_go_sdk:2.68.0.dev"
+  javaSdkImage           = "gcr.io/apache-beam-testing/beam-sdk/beam_java11_sdk:2.68.0.dev"
+  expansionServiceImage  = "gcr.io/apache-beam-testing/beam-sdk/beam_java_expansion_service:2.68.0.dev"
+}
+
 processResources {
   filter org.apache.tools.ant.filters.ReplaceTokens, tokens: [
     'dataflow.legacy_environment_major_version' : project.ext.dataflowFnapiEnvironmentMajorVersion,
