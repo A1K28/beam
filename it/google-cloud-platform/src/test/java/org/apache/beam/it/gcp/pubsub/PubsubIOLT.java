@@ -155,7 +155,7 @@ public class PubsubIOLT extends IOLoadTestBase {
     }
     writePipeline.getOptions().as(PubsubOptions.class).setProject(project);
     readPipeline.getOptions().as(PubsubOptions.class).setProject(project);
-    writePipeline.getOptions().as(DirectOptions.class).setBlockOnRun(false);
+    // writePipeline.getOptions().as(DirectOptions.class).setBlockOnRun(false);
     readPipeline.getOptions().as(DirectOptions.class).setBlockOnRun(false);
 
     if (configuration.exportMetricsToInfluxDB) {
@@ -214,6 +214,15 @@ public class PubsubIOLT extends IOLoadTestBase {
 
     WriteAndReadFormat format = WriteAndReadFormat.valueOf(configuration.writeAndReadFormat);
     PipelineLauncher.LaunchInfo writeLaunchInfo = testWrite(format);
+
+    // wait for write → RUNNING
+    while (pipelineLauncher.getJobStatus(project, region, writeLaunchInfo.jobId())
+           != PipelineLauncher.JobState.RUNNING) {
+      Thread.sleep(2_000);
+    }
+    // give Pub/Sub a few seconds to buffer
+    Thread.sleep(10_000);
+
     PipelineLauncher.LaunchInfo readLaunchInfo = testRead(format);
     PipelineOperator.Result readResult =
         pipelineOperator.waitUntilDone(
