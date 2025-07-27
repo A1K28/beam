@@ -234,7 +234,7 @@ public class PubsubIOLT extends IOLoadTestBase {
         do {
           Thread.sleep(5_000);  // 5 seconds between polls
           state = pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId());
-        } while (state == PipelineLauncher.JobState.RUNNING || state == PipelineLauncher.JobState.JOB_STATE_DRAINING);
+        } while (state == PipelineLauncher.JobState.RUNNING || state == PipelineLauncher.JobState.DRAINING);
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
