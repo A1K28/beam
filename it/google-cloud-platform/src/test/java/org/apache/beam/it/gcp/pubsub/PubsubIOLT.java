@@ -333,8 +333,17 @@ public class PubsubIOLT extends IOLoadTestBase {
     }
 
     readPipeline
-        .apply("Read from PubSub", read)
-        .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
+    .apply(
+      "Read from PubSub",
+      PubsubIO.readMessages()
+        .fromSubscription(subscription.toString())
+        .withMethod(PubsubIO.Read.Method.GRPC)      // ← force gRPC transport
+    )
+    .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
+
+    // readPipeline
+    //     .apply("Read from PubSub", read)
+    //     .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
 
     PipelineLauncher.LaunchConfig readOptions =
         PipelineLauncher.LaunchConfig.builder("read-pubsub")
