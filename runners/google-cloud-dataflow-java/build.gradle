@@ -488,6 +488,7 @@ def setupXVR = tasks.register("setupXVR") {
   dependsOn buildAndPushDockerJavaContainer
   dependsOn buildAndPushDockerPythonContainer
   dependsOn ":runners:google-cloud-dataflow-java:worker:shadowJar"
+  dependsOn project(':sdks:java:core').tasks.named('shadowTestJar')
 }
 
 def cleanupXVR = tasks.register("cleanupXVR") {
@@ -530,6 +531,7 @@ createCrossLanguageValidatesRunnerTask(
     "--region ${gcpRegion}",
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
     "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
+    "--expansion_jar=test:${project(':sdks:java:core').shadowTestJar.archiveFile.get()}",
   ],
 )
 
