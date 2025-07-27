@@ -317,7 +317,7 @@ if [[ "$RUNNER" != "direct" ]]; then
     EXPANSION_PORT=$(python3 -c "$SOCKET_SCRIPT")
     TEST_EXPANSION_ADDR="localhost:$EXPANSION_PORT"
     echo "No test expansion address specified; starting a new test expansion server on $TEST_EXPANSION_ADDR"
-    "$JAVA_CMD" -jar $TEST_EXPANSION_JAR $EXPANSION_PORT &
+    "$JAVA_CMD" -jar $TEST_EXPANSION_JAR $EXPANSION_PORT
     TEST_EXPANSION_PID=$!
   fi
   if [[ -z "$IO_EXPANSION_ADDR" && -n "$IO_EXPANSION_JAR" ]]; then
