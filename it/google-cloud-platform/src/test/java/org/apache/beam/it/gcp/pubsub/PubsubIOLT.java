@@ -20,6 +20,7 @@ package org.apache.beam.it.gcp.pubsub;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.protobuf.ByteString;
@@ -34,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import org.apache.beam.it.common.PipelineLauncher;
 import org.apache.beam.it.common.PipelineOperator;
@@ -177,30 +179,33 @@ public class PubsubIOLT extends IOLoadTestBase {
   }
 
   @Test
-  public void testStringWriteAndRead() throws IOException {
+  public void testStringWriteAndRead() throws IOException, InterruptedException, TimeoutException {
     configuration.writeAndReadFormat = WriteAndReadFormat.STRING.toString();
     testWriteAndRead();
   }
 
   @Test
-  public void testAvroGenericClassWriteAndRead() throws IOException {
+  public void testAvroGenericClassWriteAndRead()
+      throws IOException, InterruptedException, TimeoutException {
     configuration.writeAndReadFormat = WriteAndReadFormat.AVRO.toString();
     testWriteAndRead();
   }
 
   @Test
-  public void testProtoPrimitiveWriteAndRead() throws IOException {
+  public void testProtoPrimitiveWriteAndRead()
+      throws IOException, InterruptedException, TimeoutException {
     configuration.writeAndReadFormat = WriteAndReadFormat.PROTO.toString();
     testWriteAndRead();
   }
 
   @Test
-  public void testPubsubMessageWriteAndRead() throws IOException {
+  public void testPubsubMessageWriteAndRead()
+      throws IOException, InterruptedException, TimeoutException {
     configuration.writeAndReadFormat = WriteAndReadFormat.PUBSUB_MESSAGE.toString();
     testWriteAndRead();
   }
 
-  public void testWriteAndRead() throws IOException {
+  public void testWriteAndRead() throws IOException, InterruptedException, TimeoutException {
     if (configuration.exportMetricsToInfluxDB) {
       influxDBSettings =
           InfluxDBSettings.builder()
@@ -219,88 +224,73 @@ public class PubsubIOLT extends IOLoadTestBase {
     PipelineLauncher.LaunchInfo writeLaunchInfo = testWrite(format);
     PipelineLauncher.LaunchInfo readLaunchInfo = testRead(format);
 
-    // Define the success condition: check until the number of read elements
-    // matches the number of written elements.
     long expectedDataNum = configuration.numRecords - configuration.forceNumInitialBundles;
     long allowedTolerance = (long) (configuration.numRecords * TOLERANCE_FRACTION);
 
-    Supplier<Boolean> checkFn =
-        () -> {
-          // This logic polls the metric. It might fail initially, so we wrap it.
-          try {
-            double numRecords =
-                pipelineLauncher.getMetric(
-                    project,
-                    region,
-                    readLaunchInfo.jobId(),
-                    getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
+    // Manually poll for the metric, since the PipelineOperator API is not suitable.
+    // This is a robust way to check for the success condition.
+    long timeoutMillis = Duration.ofMinutes(configuration.pipelineTimeout).toMillis();
+    long startTime = System.currentTimeMillis();
+    boolean success = false;
 
-            // Return true if the metric is within the tolerance of the expected count.
-            LOG.info(
-                "Read {} of {} records so far.",
-                String.format("%.0f", numRecords),
-                expectedDataNum);
-            return Math.abs(numRecords - expectedDataNum) <= allowedTolerance;
-          } catch (Exception e) {
-            // The metric might not be available yet. Log it and return false to continue waiting.
-            LOG.warn(
-                "Metric '{}' not yet available for job {}. Waiting...",
-                READ_ELEMENT_METRIC_NAME,
-                readLaunchInfo.jobId());
-            return false;
-          }
-        };
+    while (System.currentTimeMillis() - startTime < timeoutMillis) {
+      double numRecords = 0;
+      try {
+        numRecords =
+            pipelineLauncher.getMetric(
+                project,
+                region,
+                readLaunchInfo.jobId(),
+                getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
+      } catch (Exception e) {
+        LOG.warn(
+            "Metric '{}' not yet available for job {}. Waiting...",
+            READ_ELEMENT_METRIC_NAME,
+            readLaunchInfo.jobId());
+      }
 
-    // Manually build the config to use the check function, as the helper was not overloaded.
-    PipelineOperator.Config operatorConfig =
-        PipelineOperator.Config.builder()
-            .setJobId(readLaunchInfo.jobId())
-            .setProject(project)
-            .setRegion(region)
-            .setCondition(checkFn)
-            .setTimeout(Duration.ofMinutes(configuration.pipelineTimeout))
-            .build();
-    PipelineOperator.Result readResult = pipelineOperator.waitUntilDone(operatorConfig);
+      if (Math.abs(numRecords - expectedDataNum) <= allowedTolerance) {
+        LOG.info(
+            "Success! Read {} of {} records.",
+            String.format("%.0f", numRecords),
+            expectedDataNum);
+        success = true;
+        break;
+      }
+
+      LOG.info(
+          "Still waiting for job {}. Read {} of {} records so far.",
+          readLaunchInfo.jobId(),
+          String.format("%.0f", numRecords),
+          expectedDataNum);
+      Thread.sleep(30000); // Poll every 30 seconds
+    }
+
+    if (!success) {
+      fail(
+          "Test timed out after "
+              + configuration.pipelineTimeout
+              + " minutes. The read count did not reach the expected value.");
+    }
 
     try {
-      // Assert that the pipeline did not fail. The success is determined by the checkFn.
-      assertNotEquals(
-          "The read pipeline failed to launch or was forcefully terminated.",
-          PipelineOperator.Result.LAUNCH_FAILED,
-          readResult);
-
       // 1) Drain the streaming job so it will publish its final counters
       pipelineLauncher.drainJob(project, region, readLaunchInfo.jobId());
 
       // 2) Poll until the job transitions out of RUNNING
       PipelineLauncher.JobState state;
-      try {
-        do {
-          Thread.sleep(5_000); // 5 seconds between polls
-          state = pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId());
-        } while (state == PipelineLauncher.JobState.RUNNING
-            || state == PipelineLauncher.JobState.DRAINING);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
+      do {
+        Thread.sleep(5_000); // 5 seconds between polls
+        state = pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId());
+      } while (state == PipelineLauncher.JobState.RUNNING
+          || state == PipelineLauncher.JobState.DRAINING);
 
       // 3) At this point state is DRAINED (or FAILED/CANCELLED)
       if (state != PipelineLauncher.JobState.DRAINED) {
         throw new IllegalStateException("Expected DRAINED but got " + state);
       }
-
-      // 4) Now it’s safe to fetch the final counter for reporting.
-      double numRecords =
-          pipelineLauncher.getMetric(
-              project,
-              region,
-              readLaunchInfo.jobId(),
-              getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
-
-      // 5) Final assertion for sanity check.
-      assertTrue(Math.abs(numRecords - expectedDataNum) <= allowedTolerance);
     } finally {
-      // 6) Always cancel both pipelines, even on failure
+      // 4) Always cancel both pipelines, even on failure
       cancelJobIfRunning(writeLaunchInfo);
       cancelJobIfRunning(readLaunchInfo);
     }
