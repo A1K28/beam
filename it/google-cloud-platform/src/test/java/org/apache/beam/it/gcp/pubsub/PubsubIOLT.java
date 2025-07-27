@@ -251,11 +251,16 @@ public class PubsubIOLT extends IOLoadTestBase {
           }
         };
 
-    // Wait until the read job has processed all the data using the custom check function.
-    // The `createConfig` helper method in the base class handles setting this up.
-    PipelineOperator.Result readResult =
-        pipelineOperator.waitUntilDone(
-            createConfig(readLaunchInfo, Duration.ofMinutes(configuration.pipelineTimeout), checkFn));
+    // Manually build the config to use the check function, as the helper was not overloaded.
+    PipelineOperator.Config operatorConfig =
+        PipelineOperator.Config.builder()
+            .setJobId(readLaunchInfo.jobId())
+            .setProject(project)
+            .setRegion(region)
+            .setCondition(checkFn)
+            .setTimeout(Duration.ofMinutes(configuration.pipelineTimeout))
+            .build();
+    PipelineOperator.Result readResult = pipelineOperator.waitUntilDone(operatorConfig);
 
     try {
       // Assert that the pipeline did not fail. The success is determined by the checkFn.
@@ -263,9 +268,6 @@ public class PubsubIOLT extends IOLoadTestBase {
           "The read pipeline failed to launch or was forcefully terminated.",
           PipelineOperator.Result.LAUNCH_FAILED,
           readResult);
-      // The TIMED_OUT enum member did not exist, causing a compilation error.
-      // This assertion is removed. The logic is still sound because if the condition
-      // was not met, the test would have thrown a TimeoutException from waitUntilDone.
 
       // 1) Drain the streaming job so it will publish its final counters
       pipelineLauncher.drainJob(project, region, readLaunchInfo.jobId());
