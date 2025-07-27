@@ -180,7 +180,7 @@ def runnerV2PipelineOptions = [
   "--region=${gcpRegion}",
   "--tempRoot=${dataflowValidatesTempRoot}",
   "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
-  "--experiments=use_unified_worker,use_runner_v2",
+  "--experiments=use_unified_worker,use_runner_v2,beam_fn_api_disable_log_auto_close",
   "--firestoreDb=${firestoreDb}",
   "--experiments=enable_lineage"
 ]
