@@ -220,18 +220,31 @@ public class PubsubIOLT extends IOLoadTestBase {
             createConfig(readLaunchInfo, Duration.ofMinutes(configuration.pipelineTimeout)));
 
     try {
-      // 1) Sanity checks
       assertNotEquals(PipelineOperator.Result.LAUNCH_FAILED, readResult);
       assertEquals(
           PipelineLauncher.JobState.RUNNING,
           pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId()));
 
-      // 2) Drain the streaming job so it publishes its final counters
+      // 1) Drain the streaming job so it will publish its final counters
       pipelineLauncher.drainJob(project, region, readLaunchInfo.jobId());
-      pipelineOperator.waitForJobState(
-          readLaunchInfo.jobId(), PipelineLauncher.JobState.DRAINED);
 
-      // 3) Fetch the counter while the job is still fully flushed
+      // 2) Poll until the job transitions out of RUNNING
+      PipelineLauncher.JobState state;
+      try {
+        do {
+          Thread.sleep(5_000);  // 5 seconds between polls
+          state = pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId());
+        } while (state == PipelineLauncher.JobState.RUNNING);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+
+      // 3) At this point state is DRAINED (or FAILED/CANCELLED)
+      if (state != PipelineLauncher.JobState.DRAINED) {
+        throw new IllegalStateException("Expected DRAINED but got " + state);
+      }
+
+      // 4) Now it’s safe to fetch the counter
       double numRecords =
           pipelineLauncher.getMetric(
               project,
@@ -239,7 +252,7 @@ public class PubsubIOLT extends IOLoadTestBase {
               readLaunchInfo.jobId(),
               getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
 
-      // 4) Assert tolerance
+      // 5) Assert your tolerance
       long expectedDataNum = configuration.numRecords - configuration.forceNumInitialBundles;
       long allowedTolerance = (long) (configuration.numRecords * TOLERANCE_FRACTION);
       assertTrue(Math.abs(numRecords - expectedDataNum) <= allowedTolerance);
