@@ -417,7 +417,7 @@ ARGS="$ARGS --staging_location=$GCS_LOCATION/staging-validatesrunner-test/$GCS_S
 ARGS="$ARGS --temp_location=$GCS_LOCATION/temp-validatesrunner-test/$GCS_SUBFOLDER"
 ARGS="$ARGS --endpoint=$ENDPOINT"
 if [[ -n "$TEST_EXPANSION_ADDR" ]]; then
-  ARGS="$ARGS --test_expansion_addr=$TEST_EXPANSION_ADDR"
+  ARGS="$ARGS --expansion_addr=test:$TEST_EXPANSION_ADDR"
 fi
 if [[ -n "$IO_EXPANSION_ADDR" ]]; then
   ARGS="$ARGS --io_expansion_addr=$IO_EXPANSION_ADDR"
