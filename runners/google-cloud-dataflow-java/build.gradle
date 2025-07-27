@@ -525,19 +525,41 @@ createCrossLanguageValidatesRunnerTask(
     "--log-cli-level=INFO",
   ],
   goScriptOptions: [
-    "--runner dataflow",
-    "--project ${gcpProject}",
-    "--dataflow_project ${gcpProject}",
-    "--region ${gcpRegion}",
-    "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    // Set the SDK container override via pipeline_opts
-    "--pipeline_opts",
-    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
-    // Provide the test expansion JAR using the script's dedicated flag
-    "--test_expansion_jar",
-    "${project(':sdks:java:testing:expansion-service').tasks.getByName('buildTestExpansionServiceJar').archiveFile.get().toString()}",
+      "--runner dataflow",
+      "--project ${gcpProject}",
+      "--dataflow_project ${gcpProject}",
+      "--region ${gcpRegion}",
+      "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
+      // Set the SDK container override via pipeline_opts
+      "--pipeline_opts",
+      "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
+      // Provide the test expansion JAR using the script's dedicated flag
+      "--test_expansion_jar",
+      // USE A PLACEHOLDER TO PREVENT THE CONFIGURATION-TIME ERROR
+      "PLACEHOLDER_FOR_EXPANSION_JAR",
   ],
 )
+
+// This block configures the task that was just created by the function above
+tasks.named('validatesCrossLanguageRunnerGoUsingJava') {
+  // 1. Explicitly state that this task depends on the JAR-building task.
+  //    Gradle will now ensure buildTestExpansionServiceJar runs first.
+  dependsOn project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar')
+
+  // 2. Use a doFirst block to modify the command right before execution.
+  //    At this point, the dependency has been built and the JAR file exists.
+  doFirst {
+    // Get the actual path to the JAR file. .get() is now safe to call.
+    def expansionJarPath = project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar').get().archiveFile.get().asFile.toString()
+
+    // Find and replace the placeholder in the task's command-line arguments.
+    // This makes the task's arguments correct just before it runs.
+    def newArgs = args.collect { arg ->
+      arg.replace('PLACEHOLDER_FOR_EXPANSION_JAR', expansionJarPath)
+    }
+    args = newArgs
+  }
+}
 
 task validatesRunnerV2 {
   group = "Verification"
