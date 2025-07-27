@@ -1,3 +1,4 @@
+
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -73,22 +74,46 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
+
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
+          java-version: default
+          go-version: default
           python-version: default
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - name: GCloud Docker credential helper
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: apache-beam-testing
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Set writable gcloud config
         run: |
-          gcloud auth configure-docker us.gcr.io
-      - name: run XVR GoUsingJava Dataflow script
+          mkdir -p "$RUNNER_TEMP/gcloud"
+          echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud" >> $GITHUB_ENV
+      - name: Authenticate Docker with gcloud
+        run: |
+          gcloud auth configure-docker us.gcr.io --quiet
+      - name: Write SA key and set GOOGLE_APPLICATION_CREDENTIALS
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> $GITHUB_ENV
+      - name: Build & push Java SDK harness container
+        run: ./gradlew :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
+
+      - name: Run cross‑language GoUsingJava Dataflow tests
+        run: |
+          ./gradlew \
+            :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
+            --info \
+            --stacktrace
         env:
           USER: github-actions
-          CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
-        uses: ./.github/actions/gradle-command-self-hosted-action
-        with:
-          gradle-command: :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava
+      
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
         if: ${{ !success() }}
