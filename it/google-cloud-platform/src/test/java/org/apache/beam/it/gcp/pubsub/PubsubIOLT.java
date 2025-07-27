@@ -530,4 +530,3 @@ public class PubsubIOLT extends IOLoadTestBase {
     @JsonProperty public String influxDatabase;
   }
 }
-```
