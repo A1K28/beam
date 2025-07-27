@@ -220,32 +220,34 @@ public class PubsubIOLT extends IOLoadTestBase {
             createConfig(readLaunchInfo, Duration.ofMinutes(configuration.pipelineTimeout)));
 
     try {
-      // Check the initial launch didn't fail
+      // 1) Sanity checks
       assertNotEquals(PipelineOperator.Result.LAUNCH_FAILED, readResult);
-      // streaming read pipeline does not end itself
-      // Fail the test if read pipeline (streaming) not in running state.
       assertEquals(
           PipelineLauncher.JobState.RUNNING,
           pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId()));
+
+      // 2) Drain the streaming job so it publishes its final counters
+      pipelineLauncher.drainJob(project, region, readLaunchInfo.jobId());
+      pipelineOperator.waitForJobState(
+          readLaunchInfo.jobId(), PipelineLauncher.JobState.DRAINED);
+
+      // 3) Fetch the counter while the job is still fully flushed
+      double numRecords =
+          pipelineLauncher.getMetric(
+              project,
+              region,
+              readLaunchInfo.jobId(),
+              getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
+
+      // 4) Assert tolerance
+      long expectedDataNum = configuration.numRecords - configuration.forceNumInitialBundles;
+      long allowedTolerance = (long) (configuration.numRecords * TOLERANCE_FRACTION);
+      assertTrue(Math.abs(numRecords - expectedDataNum) <= allowedTolerance);
     } finally {
+      // 5) Always cancel both pipelines, even on failure
       cancelJobIfRunning(writeLaunchInfo);
       cancelJobIfRunning(readLaunchInfo);
     }
-
-    // check metrics
-    double numRecords =
-        pipelineLauncher.getMetric(
-            project,
-            region,
-            readLaunchInfo.jobId(),
-            getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
-
-    // Assert that actual data is within tolerance of expected data number since there might be
-    // duplicates when testing big amount of data
-    long expectedDataNum = configuration.numRecords - configuration.forceNumInitialBundles;
-    long allowedTolerance = (long) (configuration.numRecords * TOLERANCE_FRACTION);
-    double delta = Math.abs(numRecords - expectedDataNum);
-    assertTrue(delta <= allowedTolerance);
 
     // export metrics
     MetricsConfiguration writeMetricsConfig =
@@ -333,17 +335,8 @@ public class PubsubIOLT extends IOLoadTestBase {
     }
 
     readPipeline
-    .apply(
-      "Read from PubSub",
-      PubsubIO.readMessages()
-        .fromSubscription(subscription.toString())
-        .withMethod(PubsubIO.Read.Method.GRPC)      // ← force gRPC transport
-    )
-    .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
-
-    // readPipeline
-    //     .apply("Read from PubSub", read)
-    //     .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
+        .apply("Read from PubSub", read)
+        .apply("Counting element", ParDo.of(new CountingFn<>(READ_ELEMENT_METRIC_NAME)));
 
     PipelineLauncher.LaunchConfig readOptions =
         PipelineLauncher.LaunchConfig.builder("read-pubsub")
