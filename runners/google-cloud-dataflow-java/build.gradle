@@ -680,7 +680,9 @@ task googleCloudPlatformLegacyWorkerKmsIntegrationTest(type: Test) {
 
 task googleCloudPlatformRunnerV2IntegrationTest(type: Test) {
   group = "Verification"
-  dependsOn buildAndPushDockerJavaContainer
+
+  dependsOn setupXVR, buildAndPushDockerJavaContainer
+  finalizedBy cleanupXVR
 
   systemProperty "beamTestPipelineOptions", JsonOutput.toJson(runnerV2PipelineOptions)
 
