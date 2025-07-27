@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 import org.apache.beam.it.common.PipelineLauncher;
 import org.apache.beam.it.common.PipelineOperator;
 import org.apache.beam.it.common.TestProperties;
@@ -63,6 +64,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * PubsubIO load test.
@@ -73,7 +76,7 @@ import org.junit.Test;
  * - To run large-scale load tests: {@code gradle :it:google-cloud-platform:PubsubLoadTestLarge}
  */
 public class PubsubIOLT extends IOLoadTestBase {
-
+  private static final Logger LOG = LoggerFactory.getLogger(PubsubIOLT.class);
   private static final double TOLERANCE_FRACTION = 0.005;
   private static final int NUMBER_OF_BUNDLES_FOR_LOCAL = 10;
   private static final int NUMBER_OF_BUNDLES_FOR_MEDIUM_AND_LARGE = 20;
@@ -215,15 +218,60 @@ public class PubsubIOLT extends IOLoadTestBase {
     WriteAndReadFormat format = WriteAndReadFormat.valueOf(configuration.writeAndReadFormat);
     PipelineLauncher.LaunchInfo writeLaunchInfo = testWrite(format);
     PipelineLauncher.LaunchInfo readLaunchInfo = testRead(format);
+
+    // Define the success condition: check until the number of read elements
+    // matches the number of written elements.
+    long expectedDataNum = configuration.numRecords - configuration.forceNumInitialBundles;
+    long allowedTolerance = (long) (configuration.numRecords * TOLERANCE_FRACTION);
+
+    Supplier<Boolean> checkFn =
+        () -> {
+          // This logic polls the metric. It might fail initially, so we wrap it.
+          try {
+            double numRecords =
+                pipelineLauncher.getMetric(
+                    project,
+                    region,
+                    readLaunchInfo.jobId(),
+                    getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
+
+            // Return true if the metric is within the tolerance of the expected count.
+            LOG.info(
+                "Read {} of {} records so far.",
+                String.format("%.0f", numRecords),
+                expectedDataNum);
+            return Math.abs(numRecords - expectedDataNum) <= allowedTolerance;
+          } catch (Exception e) {
+            // The metric might not be available yet. Log it and return false to continue waiting.
+            LOG.warn(
+                "Metric '{}' not yet available for job {}. Waiting...",
+                READ_ELEMENT_METRIC_NAME,
+                readLaunchInfo.jobId());
+            return false;
+          }
+        };
+
+    // Wait until the read job has processed all the data.
     PipelineOperator.Result readResult =
         pipelineOperator.waitUntilDone(
-            createConfig(readLaunchInfo, Duration.ofMinutes(configuration.pipelineTimeout)));
+            PipelineOperator.Config.builder()
+                .setJobId(readLaunchInfo.jobId())
+                .setProject(project)
+                .setRegion(region)
+                .setCheckAfter(checkFn)
+                .setTimeout(Duration.ofMinutes(configuration.pipelineTimeout))
+                .build());
 
     try {
-      assertNotEquals(PipelineOperator.Result.LAUNCH_FAILED, readResult);
-      assertEquals(
-          PipelineLauncher.JobState.RUNNING,
-          pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId()));
+      // Assert that the pipeline did not fail or timeout. The success is determined by the checkFn.
+      assertNotEquals(
+          "The read pipeline failed to launch.",
+          PipelineOperator.Result.LAUNCH_FAILED,
+          readResult);
+      assertNotEquals(
+          "The read pipeline timed out before processing all records.",
+          PipelineOperator.Result.TIMED_OUT,
+          readResult);
 
       // 1) Drain the streaming job so it will publish its final counters
       pipelineLauncher.drainJob(project, region, readLaunchInfo.jobId());
@@ -232,9 +280,10 @@ public class PubsubIOLT extends IOLoadTestBase {
       PipelineLauncher.JobState state;
       try {
         do {
-          Thread.sleep(5_000);  // 5 seconds between polls
+          Thread.sleep(5_000); // 5 seconds between polls
           state = pipelineLauncher.getJobStatus(project, region, readLaunchInfo.jobId());
-        } while (state == PipelineLauncher.JobState.RUNNING || state == PipelineLauncher.JobState.DRAINING);
+        } while (state == PipelineLauncher.JobState.RUNNING
+            || state == PipelineLauncher.JobState.DRAINING);
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
@@ -244,7 +293,7 @@ public class PubsubIOLT extends IOLoadTestBase {
         throw new IllegalStateException("Expected DRAINED but got " + state);
       }
 
-      // 4) Now it’s safe to fetch the counter
+      // 4) Now it’s safe to fetch the final counter for reporting.
       double numRecords =
           pipelineLauncher.getMetric(
               project,
@@ -252,12 +301,10 @@ public class PubsubIOLT extends IOLoadTestBase {
               readLaunchInfo.jobId(),
               getBeamMetricsName(PipelineMetricsType.COUNTER, READ_ELEMENT_METRIC_NAME));
 
-      // 5) Assert your tolerance
-      long expectedDataNum = configuration.numRecords - configuration.forceNumInitialBundles;
-      long allowedTolerance = (long) (configuration.numRecords * TOLERANCE_FRACTION);
+      // 5) Final assertion for sanity check.
       assertTrue(Math.abs(numRecords - expectedDataNum) <= allowedTolerance);
     } finally {
-      // 5) Always cancel both pipelines, even on failure
+      // 6) Always cancel both pipelines, even on failure
       cancelJobIfRunning(writeLaunchInfo);
       cancelJobIfRunning(readLaunchInfo);
     }
@@ -483,3 +530,4 @@ public class PubsubIOLT extends IOLoadTestBase {
     @JsonProperty public String influxDatabase;
   }
 }
+```
