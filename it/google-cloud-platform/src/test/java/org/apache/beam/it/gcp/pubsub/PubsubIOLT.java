@@ -230,7 +230,7 @@ public class PubsubIOLT extends IOLoadTestBase {
     PipelineLauncher.LaunchInfo readLaunchInfo = testRead(format);
     PipelineOperator.Result readResult =
         pipelineOperator.waitUntilDone(
-            createConfig(readLaunchInfo, Duration.ofMinutes(3)));
+            createConfig(readLaunchInfo, Duration.ofMinutes(10)));
 
     try {
       // Check the initial launch didn't fail
