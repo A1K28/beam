@@ -530,7 +530,9 @@ createCrossLanguageValidatesRunnerTask(
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    "--pipeline_opts=\"--sdk_overrides='.*java.*,${dockerJavaImageContainer}:${dockerTag}' --expansion_jar=test:${project(':sdks:java:core').shadowTestJar.archiveFile.get()}\"",
+    // Split the flag from its value into two separate list items
+    "--pipeline_opts",
+    "\"--sdk_overrides='.*java.*,${dockerJavaImageContainer}:${dockerTag}' --expansion_jar=test:${project(':sdks:java:core').shadowTestJar.archiveFile.get()}\"",
   ],
 )
 
