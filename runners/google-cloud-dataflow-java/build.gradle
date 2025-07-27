@@ -535,7 +535,7 @@ createCrossLanguageValidatesRunnerTask(
     "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
     // Provide the test expansion JAR using the script's dedicated flag
     "--test_expansion_jar",
-    "${project(':sdks:java:core').shadowTestJar.archiveFile.get().toString()}",
+    "${project(':sdks:java:testing:expansion-service').testExpansionServiceJar.archiveFile.get().toString()}",
   ],
 )
 
