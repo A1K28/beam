@@ -95,4 +95,4 @@ jobs:
       - name: run PubSub Performance test
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
-          gradle-command: :it:google-cloud-platform:PubsubLoadTestLarge --info -DinfluxHost="http://10.128.0.96:8086" -DinfluxDatabase="beam_test_metrics" -DinfluxMeasurement="java_load_test_pubsub"
+          gradle-command: :it:google-cloud-platform:PubsubLoadTestMedium --info -DinfluxHost="http://10.128.0.96:8086" -DinfluxDatabase="beam_test_metrics" -DinfluxMeasurement="java_load_test_pubsub"
