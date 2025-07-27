@@ -197,7 +197,7 @@ public class PubsubIOLT extends IOLoadTestBase {
     testWriteAndRead();
   }
 
-  public void testWriteAndRead() throws IOException, InterruptedException {
+  public void testWriteAndRead() throws IOException {
     if (configuration.exportMetricsToInfluxDB) {
       influxDBSettings =
           InfluxDBSettings.builder()
@@ -216,12 +216,16 @@ public class PubsubIOLT extends IOLoadTestBase {
     PipelineLauncher.LaunchInfo writeLaunchInfo = testWrite(format);
 
     // wait for write → RUNNING
-    while (pipelineLauncher.getJobStatus(project, region, writeLaunchInfo.jobId())
-           != PipelineLauncher.JobState.RUNNING) {
-      Thread.sleep(2_000);
+    try {
+        while (pipelineLauncher.getJobStatus(project, region, writeLaunchInfo.jobId()) 
+          != PipelineLauncher.JobState.RUNNING) {
+        Thread.sleep(2_000);
+      }
+      // give Pub/Sub a few seconds to buffer
+      Thread.sleep(10_000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
     }
-    // give Pub/Sub a few seconds to buffer
-    Thread.sleep(10_000);
 
     PipelineLauncher.LaunchInfo readLaunchInfo = testRead(format);
     PipelineOperator.Result readResult =
