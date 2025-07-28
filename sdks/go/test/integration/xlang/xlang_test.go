@@ -175,28 +175,28 @@ func TestXLang_Prefix(t *testing.T) {
 // 	ptest.RunAndValidate(t, p)
 // }
 
-// func TestXLang_PrefixWithExplicitMetadata(t *testing.T) {
-// 	// ... setup
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
+func TestXLang_PrefixWithExplicitMetadata(t *testing.T) {
+	// ... setup
+	p := beam.NewPipeline()
+	s := p.Root()
 
-// 	in := beam.Create(s, "a", "b", "c")
+	in := beam.Create(s, "a", "b", "c")
 
-// 	// 1. Add an explicit, valid timestamp to each element.
-// 	// This ensures the timestamp metadata isn't a default/invalid value.
-// 	ts := beam.AddTimestamp(s, in, func(elem string) time.Time {
-// 		return time.Now()
-// 	})
+	// 1. Add an explicit, valid timestamp to each element.
+	// This ensures the timestamp metadata isn't a default/invalid value.
+	ts := beam.AddTimestamp(s, in, func(elem string) time.Time {
+		return time.Now()
+	})
 
-//     // 2. Assign to a specific window.
-//     win := beam.WindowInto(s, window.NewFixedWindows(1*time.Minute), ts)
+    // 2. Assign to a specific window.
+    win := beam.WindowInto(s, window.NewFixedWindows(1*time.Minute), ts)
 
-// 	// 3. Now send this PCollection to the cross-language transform.
-// 	// Use your Python debug sink or the original Java Prefix.
-// 	beam.CrossLanguage(s, debugUrn, nil, expansionAddr, map[string]beam.PCollection{"input": win}, nil)
+	// 3. Now send this PCollection to the cross-language transform.
+	// Use your Python debug sink or the original Java Prefix.
+	beam.CrossLanguage(s, debugUrn, nil, expansionAddr, map[string]beam.PCollection{"input": win}, nil)
 
-// 	ptest.Run(p)
-// }
+	ptest.Run(p)
+}
 
 func TestXLang_CoGroupBy(t *testing.T) {
 	integration.CheckFilters(t)
