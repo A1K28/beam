@@ -120,12 +120,9 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	// 1. Define the URN and configuration for the Java transform directly.
+	// 1. Define the URN and configuration for the Java transform.
 	const prefixURN = "beam:transforms:xlang:test:prefix"
-	configPayload, err := beam.CrossLanguagePayload(map[string]any{"data": "prefix_"})
-	if err != nil {
-		t.Fatalf("failed to construct payload for Java transform: %v", err)
-	}
+	configPayload := beam.CrossLanguagePayload(map[string]any{"data": "prefix_"})
 
 	p := beam.NewPipeline()
 	s := p.Root()
@@ -138,11 +135,12 @@ func TestXLang_Prefix(t *testing.T) {
 	}, strings)
 	inputs := map[string]beam.PCollection{"input0": kvs}
 
-	// 3. Define the expected output type. We tell Beam to expect one output PCollection,
-	// which we'll name "output0", and that its elements will be of type KV<string, string>.
-	outputTypes := map[string]reflect.Type{"output0": reflect.TypeOf((*beam.KV[string, string])(nil)).Elem()}
+	// 3. Define the output type correctly using functions from the main beam package.
+	stringType := reflect.TypeOf("")
+	kvType := beam.NewKVType(beam.NewType(stringType), beam.NewType(stringType))
+	outputTypes := map[string]beam.FullType{"output0": kvType}
 
-	// 4. Call the generic CrossLanguage transform with our explicit types.
+	// 4. Call the generic CrossLanguage transform with the corrected types.
 	outputs := beam.CrossLanguage(s, prefixURN, configPayload, expansionAddr, inputs, outputTypes)
 	prefixedKVs := outputs["output0"]
 
