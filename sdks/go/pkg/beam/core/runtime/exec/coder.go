@@ -1221,6 +1221,7 @@ func (d *intervalWindowValueDecoder) DecodeTo(r io.Reader, value *FullValue) err
 // EncodeWindowedValueHeader serializes a windowed value header.
 func EncodeWindowedValueHeader(enc WindowEncoder, ws []typex.Window, t typex.EventTime, p typex.PaneInfo, w io.Writer) error {
 	// Encoding: Timestamp, Window, Pane (header) + Element
+	log.Printf("DEBUG ENCODING HEADER: Timestamp: %v, Pane: %+v", t, p)
 
 	if err := coder.EncodeEventTime(t, w); err != nil {
 		return err
