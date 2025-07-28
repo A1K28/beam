@@ -22,9 +22,9 @@ import (
 	"reflect"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/x/beamx"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/dataflow"
@@ -158,12 +158,14 @@ func TestXLang_Prefix(t *testing.T) {
 	s := p.Root()
 
 	strings := beam.Create(s, "a", "b", "c")
-    // FIX: Add a valid timestamp
-	timestamped := beam.AddTimestamp(s, strings, func(e string) typex.EventTime {
+
+	// FIX: Call AddTimestamp from the correct beamx package.
+	timestamped := beamx.AddTimestamp(s, strings, func(e string) typex.EventTime {
 		return 0
 	})
 
 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
+
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
