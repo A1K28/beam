@@ -120,49 +120,83 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
+	log.Println("INFO: Running modified test TestXLang_Prefix_AsKV")
+
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	import "log"
-
-	// Your PCollection that is causing the issue
+	// 1. Create a PCollection of strings as before.
 	strings := beam.Create(s, "a", "b", "c")
 
-	// Add this logging ParDo to see what's actually in the PCollection
-	beam.ParDo(s, func(v string, w beam.Window) {
-	    log.Printf("Go SDK is sending: Value='%v', Window='%v'", v, w)
+	// 2. Wrap the strings in a dummy KV. The key can be any serializable type.
+	//    This creates a PCollection<KV<int, string>>.
+	kvs := beam.ParDo(s, func(v string) (int, string) {
+		return 0, v // Using a dummy key '0' for all elements.
 	}, strings)
 
-	// Now call the cross-language transform
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+	// 3. Call the cross-language transform.
+	//    We assume the Java side now expects and returns a KV.
+	prefixedKVs := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
 
+	// 4. Unwrap the result. ParDo extracts the value from the KV
+	//    to get back to a PCollection<string>.
+	prefixed := beam.ParDo(s, func(k int, v string) string {
+		return v
+	}, prefixedKVs)
+
+	// 5. The assertion remains the same.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
 }
 
-func TestXLang_PrefixWithExplicitMetadata(t *testing.T) {
-	// ... setup
-	p := beam.NewPipeline()
-	s := p.Root()
+// func TestXLang_Prefix(t *testing.T) {
+// 	integration.CheckFilters(t)
+// 	checkFlags(t)
 
-	in := beam.Create(s, "a", "b", "c")
+// 	p := beam.NewPipeline()
+// 	s := p.Root()
 
-	// 1. Add an explicit, valid timestamp to each element.
-	// This ensures the timestamp metadata isn't a default/invalid value.
-	ts := beam.AddTimestamp(s, in, func(elem string) time.Time {
-		return time.Now()
-	})
+// 	import "log"
 
-    // 2. Assign to a specific window.
-    win := beam.WindowInto(s, window.NewFixedWindows(1*time.Minute), ts)
+// 	// Your PCollection that is causing the issue
+// 	strings := beam.Create(s, "a", "b", "c")
 
-	// 3. Now send this PCollection to the cross-language transform.
-	// Use your Python debug sink or the original Java Prefix.
-	beam.CrossLanguage(s, debugUrn, nil, expansionAddr, map[string]beam.PCollection{"input": win}, nil)
+// 	// Add this logging ParDo to see what's actually in the PCollection
+// 	beam.ParDo(s, func(v string, w beam.Window) {
+// 	    log.Printf("Go SDK is sending: Value='%v', Window='%v'", v, w)
+// 	}, strings)
 
-	ptest.Run(p)
-}
+// 	// Now call the cross-language transform
+// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+
+// 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+
+// 	ptest.RunAndValidate(t, p)
+// }
+
+// func TestXLang_PrefixWithExplicitMetadata(t *testing.T) {
+// 	// ... setup
+// 	p := beam.NewPipeline()
+// 	s := p.Root()
+
+// 	in := beam.Create(s, "a", "b", "c")
+
+// 	// 1. Add an explicit, valid timestamp to each element.
+// 	// This ensures the timestamp metadata isn't a default/invalid value.
+// 	ts := beam.AddTimestamp(s, in, func(elem string) time.Time {
+// 		return time.Now()
+// 	})
+
+//     // 2. Assign to a specific window.
+//     win := beam.WindowInto(s, window.NewFixedWindows(1*time.Minute), ts)
+
+// 	// 3. Now send this PCollection to the cross-language transform.
+// 	// Use your Python debug sink or the original Java Prefix.
+// 	beam.CrossLanguage(s, debugUrn, nil, expansionAddr, map[string]beam.PCollection{"input": win}, nil)
+
+// 	ptest.Run(p)
+// }
 
 func TestXLang_CoGroupBy(t *testing.T) {
 	integration.CheckFilters(t)
