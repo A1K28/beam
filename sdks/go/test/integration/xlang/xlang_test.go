@@ -123,9 +123,19 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// Using the cross-language transform
+	import "log"
+
+	// Your PCollection that is causing the issue
 	strings := beam.Create(s, "a", "b", "c")
+
+	// Add this logging ParDo to see what's actually in the PCollection
+	beam.ParDo(s, func(v string, w beam.Window) {
+	    log.Printf("Go SDK is sending: Value='%v', Window='%v'", v, w)
+	}, strings)
+
+	// Now call the cross-language transform
 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
