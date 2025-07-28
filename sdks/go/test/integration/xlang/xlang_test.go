@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/x/beamx"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/dataflow"
