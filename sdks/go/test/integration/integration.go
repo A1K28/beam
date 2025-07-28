@@ -284,7 +284,7 @@ var sparkFilters = []string{
 
 var dataflowFilters = []string{
 	// Temporary filters
-	"TestXLang_Prefix",
+	// "TestXLang_Prefix",
 	"TestXLang_CoGroupBy",
 	"TestXLang_Combine",
 	"TestXLang_CombineGlobally",
