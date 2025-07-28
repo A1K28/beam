@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/dataflow"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/flink"
@@ -123,6 +124,32 @@ type prefixConfig struct {
 	Data string
 }
 
+// func TestXLang_Prefix(t *testing.T) {
+// 	integration.CheckFilters(t)
+// 	checkFlags(t)
+
+// 	p := beam.NewPipeline()
+// 	s := p.Root()
+
+// 	// 1. Create the initial PCollection of strings.
+// 	strings := beam.Create(s, "a", "b", "c")
+
+// 	// 2. THIS IS THE FIX: Add a valid timestamp to each element using a ParDo.
+// 	//    This avoids the default "-inf" timestamp that causes the bug.
+// 	timestamped := beam.ParDo(s, func(elm string, et beam.EventTime, emit func(string)) {
+// 		emit(elm)
+// 	}, beam.InjectTimestamp(s, strings))
+
+
+// 	// 3. Call the cross-language transform with the timestamped data.
+// 	prefixed := xlang.Prefix(s, expansionAddr, timestamped)
+
+// 	// 4. The assertion can now pass.
+// 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+
+// 	ptest.RunAndValidate(t, p)
+// }
+
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
@@ -130,20 +157,13 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create the initial PCollection of strings.
 	strings := beam.Create(s, "a", "b", "c")
+    // FIX: Add a valid timestamp
+	timestamped := beam.AddTimestamp(s, strings, func(e string) typex.EventTime {
+		return 0
+	})
 
-	// 2. THIS IS THE FIX: Add a valid timestamp to each element using a ParDo.
-	//    This avoids the default "-inf" timestamp that causes the bug.
-	timestamped := beam.ParDo(s, func(elm string, et beam.EventTime, emit func(string)) {
-		emit(elm)
-	}, beam.InjectTimestamp(s, strings))
-
-
-	// 3. Call the cross-language transform with the timestamped data.
-	prefixed := xlang.Prefix(s, expansionAddr, timestamped)
-
-	// 4. The assertion can now pass.
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
@@ -162,29 +182,6 @@ func TestXLang_Prefix(t *testing.T) {
 // 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 // 	ptest.RunAndValidate(t, p)
-// }
-
-// func TestXLang_PrefixWithExplicitMetadata(t *testing.T) {
-// 	// ... setup
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
-
-// 	in := beam.Create(s, "a", "b", "c")
-
-// 	// 1. Add an explicit, valid timestamp to each element.
-// 	// This ensures the timestamp metadata isn't a default/invalid value.
-// 	ts := beam.AddTimestamp(s, in, func(elem string) time.Time {
-// 		return time.Now()
-// 	})
-
-//     // 2. Assign to a specific window.
-//     win := beam.WindowInto(s, window.NewFixedWindows(1*time.Minute), ts)
-
-// 	// 3. Now send this PCollection to the cross-language transform.
-// 	// Use your Python debug sink or the original Java Prefix.
-// 	beam.CrossLanguage(s, debugUrn, nil, expansionAddr, map[string]beam.PCollection{"input": win}, nil)
-
-// 	ptest.Run(p)
 // }
 
 func TestXLang_CoGroupBy(t *testing.T) {
