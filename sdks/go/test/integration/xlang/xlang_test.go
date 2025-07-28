@@ -33,7 +33,6 @@ import (
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/testing/ptest"
 	"github.com/apache/beam/sdks/v2/go/test/integration"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 )
 
 var expansionAddr string // Populate with expansion address labelled "test".
@@ -134,15 +133,15 @@ func TestXLang_Prefix(t *testing.T) {
 	// 1. Create the initial PCollection of strings.
 	strings := beam.Create(s, "a", "b", "c")
 
-	// 2. THIS IS THE FIX: Add a valid timestamp to each element.
+	// 2. THIS IS THE FIX: Add a valid timestamp to each element using a ParDo.
 	//    This avoids the default "-inf" timestamp that causes the bug.
-	timestamped := beam.AddTimestamp(s, strings, func(v string) time.Time {
-		return time.Now()
-	})
+	timestamped := beam.ParDo(s, func(elm string, et beam.EventTime, emit func(string)) {
+		emit(elm)
+	}, beam.InjectTimestamp(s, strings))
+
 
 	// 3. Call the cross-language transform with the timestamped data.
-	//    The Java side will ignore the timestamp, which is fine.
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
+	prefixed := xlang.Prefix(s, expansionAddr, timestamped)
 
 	// 4. The assertion can now pass.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
