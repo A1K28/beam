@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
@@ -127,36 +128,23 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	// 1. Define the URN and configuration for the Java transform.
-	const prefixURN = "beam:transforms:xlang:test:prefix"
-	configPayload := beam.CrossLanguagePayload(prefixConfig{Data: "prefix_"})
-
 	p := beam.NewPipeline()
 	s := p.Root()
 
+	// 1. Create the initial PCollection of strings.
 	strings := beam.Create(s, "a", "b", "c")
 
-	// 2. Wrap the strings in a portable KV<string, string> to avoid the Dataflow runner bug.
-	kvs := beam.ParDo(s, func(v string) (string, string) {
-		return "dummy_key", v
-	}, strings)
-	inputs := map[string]beam.PCollection{"input0": kvs}
+	// 2. THIS IS THE FIX: Add a valid timestamp to each element.
+	//    This avoids the default "-inf" timestamp that causes the bug.
+	timestamped := beam.AddTimestamp(s, strings, func(v string) time.Time {
+		return time.Now()
+	})
 
-	// 3. Define the output type map using the correct tag: "output".
-	stringType := reflect.TypeOf("")
-	kvType := typex.NewKV(typex.New(stringType), typex.New(stringType))
-	outputTypes := map[string]typex.FullType{"output": kvType} // Changed "output0" to "output"
+	// 3. Call the cross-language transform with the timestamped data.
+	//    The Java side will ignore the timestamp, which is fine.
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
 
-	// 4. Call the generic CrossLanguage transform.
-	outputs := beam.CrossLanguage(s, prefixURN, configPayload, expansionAddr, inputs, outputTypes)
-	prefixedKVs := outputs["output"] // Changed "output0" to "output"
-
-	// 5. Unwrap the result.
-	prefixed := beam.ParDo(s, func(k, v string) string {
-		return v
-	}, prefixedKVs)
-
-	// 6. Assert the final result.
+	// 4. The assertion can now pass.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
