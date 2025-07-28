@@ -120,30 +120,29 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	log.Println("INFO: Running final test with portable KV<string, string> wrapper")
-
 	p := beam.NewPipeline()
 	s := p.Root()
 
+	// 1. Create the initial PCollection of strings.
 	strings := beam.Create(s, "a", "b", "c")
 
-	// Wrap in a KV with a STRING key. StringUtf8Coder is universally portable.
+	// 2. Wrap the strings in a KV<string, string> to avoid the Dataflow runner bug.
 	kvs := beam.ParDo(s, func(v string) (string, string) {
 		return "dummy_key", v
 	}, strings)
 
-	// Call the cross-language transform with the portable KV PCollection.
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
+	// 3. Call the cross-language transform, which now receives and returns KVs.
+	prefixedKVs := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
 
-	// Log the output.
-	beam.ParDo0(s, func(v string) {
-		log.Printf("Java transform returned: %v", v)
-	}, prefixed)
+	// 4. Unwrap the result to get the prefixed string for the assertion.
+	prefixed := beam.ParDo(s, func(k string, v string) string {
+		return v
+	}, prefixedKVs)
 
-	// Run the pipeline.
-	if err := ptest.Run(p); err != nil {
-		t.Fatalf("Pipeline run failed: %v", err)
-	}
+	// 5. The assertion can now pass.
+	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+
+	ptest.RunAndValidate(t, p)
 }
 
 // func TestXLang_Prefix(t *testing.T) {

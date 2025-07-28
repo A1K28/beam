@@ -197,12 +197,19 @@ public class TestExpansionService {
 
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+            StringConfiguration, PCollection<KV<String, String>>, PCollection<KV<String, String>>> {
       @Override
-      public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
+      public PTransform<PCollection<KV<String, String>>, PCollection<KV<String, String>>> buildExternal(
           StringConfiguration configuration) {
-        return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> configuration.data + x);
+        // TODO: Revert this to a simple PCollection<String> transform once the
+        // underlying Dataflow runner bug is fixed. This uses a KV wrapper to avoid a bug
+        // handling non-KV PCollections from the Go SDK.
+        // See bug report: [LINK_TO_YOUR_NEW_BUG_REPORT]
+        return MapElements.into(
+                TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
+            .via(
+                (KV<String, String> kv) ->
+                    KV.of(kv.getKey(), configuration.data + kv.getValue()));
       }
     }
 
