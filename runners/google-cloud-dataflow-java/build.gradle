@@ -525,41 +525,16 @@ createCrossLanguageValidatesRunnerTask(
     "--log-cli-level=INFO",
   ],
   goScriptOptions: [
-      "--runner dataflow",
-      "--project ${gcpProject}",
-      "--dataflow_project ${gcpProject}",
-      "--region ${gcpRegion}",
-      "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-      // Set the SDK container override via pipeline_opts
-      "--pipeline_opts",
-      "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
-      // Provide the test expansion JAR using the script's dedicated flag
-      "--test_expansion_jar",
-      "PLACEHOLDER_FOR_EXPANSION_JAR",
+    "--runner dataflow",
+    "--project ${gcpProject}",
+    "--dataflow_project ${gcpProject}",
+    "--region ${gcpRegion}",
+    "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
+    // Set the SDK container override via pipeline_opts
+    "--pipeline_opts",
+    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
   ],
 )
-
-tasks.named('validatesCrossLanguageRunnerGoUsingJava') {
-    // 1. Establish the dependency using the correct lazy provider method.
-    //    This tells Gradle's scheduler to run the JAR task first.
-    dependsOn project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar')
-
-    // 2. Use a doFirst block to run code at the start of the execution phase.
-    doFirst {
-        // 3. Get the task provider for the JAR task.
-        def expansionJarTaskProvider = project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar')
-
-        // 4. It's now safe to get the actual task and its file path.
-        def expansionJarPath = expansionJarTaskProvider.get().archiveFile.get().asFile.toString()
-
-        // 5. Find and replace the placeholder in this task's arguments.
-        //    The task created by the Go helper function DOES have an 'args' property we can modify.
-        def newArgs = args.collect { arg ->
-            arg.replace('PLACEHOLDER_FOR_EXPANSION_JAR', expansionJarPath)
-        }
-        args = newArgs
-    }
-}
 
 task validatesRunnerV2 {
   group = "Verification"
