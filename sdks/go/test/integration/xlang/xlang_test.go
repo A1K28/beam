@@ -32,6 +32,7 @@ import (
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/testing/passert"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/testing/ptest"
 	"github.com/apache/beam/sdks/v2/go/test/integration"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 )
 
 var expansionAddr string // Populate with expansion address labelled "test".
@@ -120,7 +121,7 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	// 1. Define the URN and configuration for the Java transform.
+	// Define the URN and configuration for the Java transform.
 	const prefixURN = "beam:transforms:xlang:test:prefix"
 	configPayload := beam.CrossLanguagePayload(map[string]any{"data": "prefix_"})
 
@@ -129,27 +130,28 @@ func TestXLang_Prefix(t *testing.T) {
 
 	strings := beam.Create(s, "a", "b", "c")
 
-	// 2. Wrap the strings in a KV<string, string> to avoid the Dataflow runner bug.
+	// Wrap the strings in a KV<string, string> to avoid the Dataflow runner bug.
 	kvs := beam.ParDo(s, func(v string) (string, string) {
 		return "dummy_key", v
 	}, strings)
 	inputs := map[string]beam.PCollection{"input0": kvs}
 
-	// 3. Define the output type correctly using functions from the main beam package.
+	// Define the output type correctly using the imported typex package.
+	// This is the only way to correctly specify a KV type for the cross-language API.
 	stringType := reflect.TypeOf("")
-	kvType := beam.NewKVType(beam.NewType(stringType), beam.NewType(stringType))
-	outputTypes := map[string]beam.FullType{"output0": kvType}
+	kvType := typex.NewKV(typex.New(stringType), typex.New(stringType))
+	outputTypes := map[string]typex.FullType{"output0": kvType}
 
-	// 4. Call the generic CrossLanguage transform with the corrected types.
+	// Call the generic CrossLanguage transform with the corrected types.
 	outputs := beam.CrossLanguage(s, prefixURN, configPayload, expansionAddr, inputs, outputTypes)
 	prefixedKVs := outputs["output0"]
 
-	// 5. Unwrap the result. This ParDo will now correctly receive KV pairs.
+	// Unwrap the result.
 	prefixed := beam.ParDo(s, func(k, v string) string {
 		return v
 	}, prefixedKVs)
 
-	// 6. The assertion can now pass.
+	// The assertion can now pass.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
