@@ -120,26 +120,38 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
+	// 1. Define the URN and configuration for the Java transform directly.
+	const prefixURN = "beam:transforms:xlang:test:prefix"
+	configPayload, err := beam.CrossLanguagePayload(map[string]any{"data": "prefix_"})
+	if err != nil {
+		t.Fatalf("failed to construct payload for Java transform: %v", err)
+	}
+
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create the initial PCollection of strings.
 	strings := beam.Create(s, "a", "b", "c")
 
 	// 2. Wrap the strings in a KV<string, string> to avoid the Dataflow runner bug.
 	kvs := beam.ParDo(s, func(v string) (string, string) {
 		return "dummy_key", v
 	}, strings)
+	inputs := map[string]beam.PCollection{"input0": kvs}
 
-	// 3. Call the cross-language transform, which now receives and returns KVs.
-	prefixedKVs := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
+	// 3. Define the expected output type. We tell Beam to expect one output PCollection,
+	// which we'll name "output0", and that its elements will be of type KV<string, string>.
+	outputTypes := map[string]reflect.Type{"output0": reflect.TypeOf((*beam.KV[string, string])(nil)).Elem()}
 
-	// 4. Unwrap the result to get the prefixed string for the assertion.
-	prefixed := beam.ParDo(s, func(k string, v string) string {
+	// 4. Call the generic CrossLanguage transform with our explicit types.
+	outputs := beam.CrossLanguage(s, prefixURN, configPayload, expansionAddr, inputs, outputTypes)
+	prefixedKVs := outputs["output0"]
+
+	// 5. Unwrap the result. This ParDo will now correctly receive KV pairs.
+	prefixed := beam.ParDo(s, func(k, v string) string {
 		return v
 	}, prefixedKVs)
 
-	// 5. The assertion can now pass.
+	// 6. The assertion can now pass.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
