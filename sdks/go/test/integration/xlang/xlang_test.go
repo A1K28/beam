@@ -159,13 +159,13 @@ func TestXLang_Prefix(t *testing.T) {
 
 	strings := beam.Create(s, "a", "b", "c")
 
-	// FIX: Call AddTimestamp from the correct beamx package.
-	timestamped := beamx.AddTimestamp(s, strings, func(e string) typex.EventTime {
-		return 0
-	})
+	// FIX: Use a ParDo with a timestamp-aware emitter to
+	// explicitly set the timestamp for each element to 0.
+	timestamped := beam.ParDo(s, func(elm string, emit func(typex.EventTime, string)) {
+		emit(0, elm)
+	}, strings)
 
 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
-
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
