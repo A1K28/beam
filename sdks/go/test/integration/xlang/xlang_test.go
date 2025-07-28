@@ -117,41 +117,46 @@ func collectValues(key string, iter func(*int64) bool) (string, []int) {
 	return key, values
 }
 
+// prefixConfig matches the Java StringConfiguration class for the payload.
+// The field must be exported (start with a capital letter).
+type prefixConfig struct {
+	Data string
+}
+
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	// Define the URN and configuration for the Java transform.
+	// 1. Define the URN and create the configuration payload using our new struct.
 	const prefixURN = "beam:transforms:xlang:test:prefix"
-	configPayload := beam.CrossLanguagePayload(map[string]any{"data": "prefix_"})
+	configPayload := beam.CrossLanguagePayload(prefixConfig{Data: "prefix_"})
 
 	p := beam.NewPipeline()
 	s := p.Root()
 
 	strings := beam.Create(s, "a", "b", "c")
 
-	// Wrap the strings in a KV<string, string> to avoid the Dataflow runner bug.
+	// 2. Wrap the strings in a portable KV<string, string> to avoid the Dataflow runner bug.
 	kvs := beam.ParDo(s, func(v string) (string, string) {
 		return "dummy_key", v
 	}, strings)
 	inputs := map[string]beam.PCollection{"input0": kvs}
 
-	// Define the output type correctly using the imported typex package.
-	// This is the only way to correctly specify a KV type for the cross-language API.
+	// 3. Define the output type correctly using the imported typex package.
 	stringType := reflect.TypeOf("")
 	kvType := typex.NewKV(typex.New(stringType), typex.New(stringType))
 	outputTypes := map[string]typex.FullType{"output0": kvType}
 
-	// Call the generic CrossLanguage transform with the corrected types.
+	// 4. Call the generic CrossLanguage transform with the corrected types.
 	outputs := beam.CrossLanguage(s, prefixURN, configPayload, expansionAddr, inputs, outputTypes)
 	prefixedKVs := outputs["output0"]
 
-	// Unwrap the result.
+	// 5. Unwrap the result.
 	prefixed := beam.ParDo(s, func(k, v string) string {
 		return v
 	}, prefixedKVs)
 
-	// The assertion can now pass.
+	// 6. Assert the final result.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
