@@ -120,28 +120,27 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	log.Println("INFO: Running corrected test to confirm KV wrapper avoids VARINT panic (v3)")
+	log.Println("INFO: Running final test with portable KV<string, string> wrapper")
 
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create a PCollection of strings.
 	strings := beam.Create(s, "a", "b", "c")
 
-	// 2. Wrap the strings in a dummy KV<int, string>.
-	kvs := beam.ParDo(s, func(v string) (int, string) {
-		return 0, v // Using a dummy key '0'
+	// Wrap in a KV with a STRING key. StringUtf8Coder is universally portable.
+	kvs := beam.ParDo(s, func(v string) (string, string) {
+		return "dummy_key", v
 	}, strings)
 
-	// 3. Call the cross-language transform with the KV PCollection.
+	// Call the cross-language transform with the portable KV PCollection.
 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
 
-	// 4. Log the output using ParDo0 because this function has no outputs.
+	// Log the output.
 	beam.ParDo0(s, func(v string) {
 		log.Printf("Java transform returned: %v", v)
 	}, prefixed)
 
-	// 5. Run the pipeline.
+	// Run the pipeline.
 	if err := ptest.Run(p); err != nil {
 		t.Fatalf("Pipeline run failed: %v", err)
 	}
@@ -154,19 +153,9 @@ func TestXLang_Prefix(t *testing.T) {
 // 	p := beam.NewPipeline()
 // 	s := p.Root()
 
-// 	import "log"
-
-// 	// Your PCollection that is causing the issue
+// 	// Using the cross-language transform
 // 	strings := beam.Create(s, "a", "b", "c")
-
-// 	// Add this logging ParDo to see what's actually in the PCollection
-// 	beam.ParDo(s, func(v string, w beam.Window) {
-// 	    log.Printf("Go SDK is sending: Value='%v', Window='%v'", v, w)
-// 	}, strings)
-
-// 	// Now call the cross-language transform
 // 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
-
 // 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 // 	ptest.RunAndValidate(t, p)
