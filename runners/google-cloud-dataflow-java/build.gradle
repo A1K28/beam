@@ -532,7 +532,7 @@ createCrossLanguageValidatesRunnerTask(
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
     // Set the SDK container override via pipeline_opts
     "--pipeline_opts",
-    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
+    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}' --experiments=disable_runner_v2\"",
   ],
 )
 
