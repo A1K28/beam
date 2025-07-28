@@ -542,23 +542,25 @@ createCrossLanguageValidatesRunnerTask(
 
 // This block configures the task that was just created by the function above
 tasks.named('validatesCrossLanguageRunnerGoUsingJava') {
-  // 1. Explicitly state that this task depends on the JAR-building task.
-  //    Gradle will now ensure buildTestExpansionServiceJar runs first.
-  dependsOn project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar')
+    // 1. This part is correct and MUST be kept. It sets up the dependency.
+    dependsOn project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar')
 
-  // 2. Use a doFirst block to modify the command right before execution.
-  //    At this point, the dependency has been built and the JAR file exists.
-  doFirst {
-    // Get the actual path to the JAR file. .get() is now safe to call.
-    def expansionJarPath = project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar').get().archiveFile.get().asFile.toString()
+    // 2. This doFirst block is the corrected part.
+    doFirst {
+        // Get the actual path to the JAR file. .get() is now safe to call.
+        def expansionJarPath = project(':sdks:java:testing:expansion-service').tasks.named('buildTestExpansionServiceJar').get().archiveFile.get().asFile.toString()
 
-    // Find and replace the placeholder in the task's command-line arguments.
-    // This makes the task's arguments correct just before it runs.
-    def newArgs = args.collect { arg ->
-      arg.replace('PLACEHOLDER_FOR_EXPANSION_JAR', expansionJarPath)
+        // Get the existing command line arguments.
+        def currentCommandLine = commandLine
+
+        // Create a new list of arguments, replacing the placeholder.
+        def newCommandLine = currentCommandLine.collect { arg ->
+            arg.replace('PLACEHOLDER_FOR_EXPANSION_JAR', expansionJarPath)
+        }
+
+        // Set the task's command line to the new, corrected list.
+        commandLine = newCommandLine
     }
-    args = newArgs
-  }
 }
 
 task validatesRunnerV2 {
