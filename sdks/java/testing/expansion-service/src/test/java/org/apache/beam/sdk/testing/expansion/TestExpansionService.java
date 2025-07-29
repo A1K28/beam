@@ -202,11 +202,8 @@ public class TestExpansionService {
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
         return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> {
-              // Add the debug print line here
-              System.err.println("DATAFOW_DEBUG_TEST: My prefix transform is printing this.");
-              return configuration.data + x;
-            });
+            .via((String x) -> null);
+            // .via((String x) -> configuration.data + x);
       }
     }
 
