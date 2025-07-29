@@ -22,12 +22,9 @@ import (
 	"reflect"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/window"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/dataflow"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/flink"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/samza"
@@ -119,37 +116,6 @@ func collectValues(key string, iter func(*int64) bool) (string, []int) {
 	return key, values
 }
 
-// func TestXLang_Prefix(t *testing.T) {
-// 	integration.CheckFilters(t)
-// 	checkFlags(t)
-
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
-
-// 	// 1. Create the input PCollection with timestamp 0.
-// 	imp := beam.Impulse(s)
-// 	strings := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
-// 		emit(0, "a")
-// 		emit(0, "b")
-// 		emit(0, "c")
-// 	}, imp)
-
-// 	// 2. Run the transform to get the actual result.
-// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
-
-// 	// 3. Manually create the EXPECTED PCollection, also with timestamp 0.
-// 	expected := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
-// 		emit(0, "prefix_a")
-// 		emit(0, "prefix_b")
-// 		emit(0, "prefix_c")
-// 	}, imp) // Reuse the same impulse
-
-// 	// 4. Assert that the two PCollections are equal.
-// 	passert.Equals(s, prefixed, expected)
-
-// 	ptest.RunAndValidate(t, p)
-// }
-
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
@@ -157,26 +123,10 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create the main data with a valid timestamp using the Impulse pattern.
-	actualRaw := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
-		emit(0, "a")
-		emit(0, "b")
-		emit(0, "c")
-	}, beam.Impulse(s))
-
-	// 2. WORKAROUND: Assign the data to a Fixed Window instead of the default Global Window.
-	// This forces the pipeline to use a different, non-buggy window encoder.
-	windowedActual := beam.WindowInto(s, window.NewFixedWindows(time.Hour), actualRaw)
-
-	// 3. Call the cross-language transform.
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, windowedActual)
-
-	// 4. Create the expected data and assign it to the SAME window for a valid comparison.
-	expectedRaw := beam.Create(s, "prefix_a", "prefix_b", "prefix_c")
-	windowedExpected := beam.WindowInto(s, window.NewFixedWindows(time.Hour), expectedRaw)
-
-	// 5. Assert that the two PCollections are equal.
-	passert.Equals(s, prefixed, windowedExpected)
+	// Using the cross-language transform
+	strings := beam.Create(s, "a", "b", "c")
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
 }
