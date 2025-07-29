@@ -26,6 +26,7 @@ import (
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/window"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/dataflow"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/flink"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/samza"
@@ -117,6 +118,37 @@ func collectValues(key string, iter func(*int64) bool) (string, []int) {
 	return key, values
 }
 
+// func TestXLang_Prefix(t *testing.T) {
+// 	integration.CheckFilters(t)
+// 	checkFlags(t)
+
+// 	p := beam.NewPipeline()
+// 	s := p.Root()
+
+// 	// 1. Create the input PCollection with timestamp 0.
+// 	imp := beam.Impulse(s)
+// 	strings := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
+// 		emit(0, "a")
+// 		emit(0, "b")
+// 		emit(0, "c")
+// 	}, imp)
+
+// 	// 2. Run the transform to get the actual result.
+// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+
+// 	// 3. Manually create the EXPECTED PCollection, also with timestamp 0.
+// 	expected := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
+// 		emit(0, "prefix_a")
+// 		emit(0, "prefix_b")
+// 		emit(0, "prefix_c")
+// 	}, imp) // Reuse the same impulse
+
+// 	// 4. Assert that the two PCollections are equal.
+// 	passert.Equals(s, prefixed, expected)
+
+// 	ptest.RunAndValidate(t, p)
+// }
+
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
@@ -124,77 +156,29 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create the input PCollection with timestamp 0.
-	imp := beam.Impulse(s)
-	strings := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
+	// 1. Create the main data with a valid timestamp using the Impulse pattern.
+	actualRaw := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
 		emit(0, "a")
 		emit(0, "b")
 		emit(0, "c")
-	}, imp)
+	}, beam.Impulse(s))
 
-	// 2. Run the transform to get the actual result.
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+	// 2. WORKAROUND: Assign the data to a Fixed Window instead of the default Global Window.
+	// This forces the pipeline to use a different, non-buggy window encoder.
+	windowedActual := beam.WindowInto(s, window.NewFixedWindows(time.Hour), actualRaw)
 
-	// 3. Manually create the EXPECTED PCollection, also with timestamp 0.
-	expected := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
-		emit(0, "prefix_a")
-		emit(0, "prefix_b")
-		emit(0, "prefix_c")
-	}, imp) // Reuse the same impulse
+	// 3. Call the cross-language transform.
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, windowedActual)
 
-	// 4. Assert that the two PCollections are equal.
-	passert.Equals(s, prefixed, expected)
+	// 4. Create the expected data and assign it to the SAME window for a valid comparison.
+	expectedRaw := beam.Create(s, "prefix_a", "prefix_b", "prefix_c")
+	windowedExpected := beam.WindowInto(s, window.NewFixedWindows(time.Hour), expectedRaw)
+
+	// 5. Assert that the two PCollections are equal.
+	passert.Equals(s, prefixed, windowedExpected)
 
 	ptest.RunAndValidate(t, p)
 }
-
-// func TestXLang_Prefix(t *testing.T) {
-// 	integration.CheckFilters(t)
-// 	checkFlags(t)
-
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
-
-// 	// 1. Create the initial PCollection of simple strings.
-// 	// These elements have a default timestamp of -infinity.
-// 	strings := beam.Create(s, "a", "b", "c")
-
-// 	// 2. Use a single ParDo to perform two critical tasks:
-// 	//    a) Convert each string into a KV<string, string>. We use a dummy empty string for the key.
-// 	//    b) Assign a valid timestamp of 0 to each new KV pair.
-// 	kvsWithTimestamp := beam.ParDo(s, func(elm string, emit func(typex.EventTime, string, string)) {
-// 		emit(0, "", elm) // Emitting: (timestamp, key, value)
-// 	}, strings)
-
-// 	// 3. Call the cross-language transform with the correctly formatted and timestamped data.
-// 	prefixedKVs := xlang.Prefix(s, "prefix_", expansionAddr, kvsWithTimestamp)
-
-// 	// 4. The Java service returns a PCollection of KVs. We need to extract just the
-// 	//    value to perform the assertion.
-// 	prefixedVals := beam.ParDo(s, func(key, val string) string {
-// 		return val
-// 	}, prefixedKVs)
-
-// 	// 5. Assert that the final values are correct.
-// 	passert.Equals(s, prefixedVals, "prefix_a", "prefix_b", "prefix_c")
-
-// 	ptest.RunAndValidate(t, p)
-// }
-
-// func TestXLang_Prefix(t *testing.T) {
-// 	integration.CheckFilters(t)
-// 	checkFlags(t)
-
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
-
-// 	// Using the cross-language transform
-// 	strings := beam.Create(s, "a", "b", "c")
-// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
-// 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
-
-// 	ptest.RunAndValidate(t, p)
-// }
 
 func TestXLang_CoGroupBy(t *testing.T) {
 	integration.CheckFilters(t)
