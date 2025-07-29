@@ -125,7 +125,8 @@ func TestXLang_Prefix(t *testing.T) {
 	s := p.Root()
 
 	strings := beam.Create(s, "a", "b", "c")
-	prefixed := Prefix(s, "prefix_", expansionAddr, strings)
+	// Add the 'xlang.' package qualifier here.
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
 
 	// Hardcode the GCS output path directly.
 	outputPath := "gs://aleks-shr-bucket/prefix-output.txt"
