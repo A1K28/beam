@@ -202,8 +202,7 @@ public class TestExpansionService {
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
         return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> null);
-            // .via((String x) -> configuration.data + x);
+            .via((String x) -> configuration.data + x);
       }
     }
 
