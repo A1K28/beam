@@ -26,6 +26,7 @@ import (
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
+	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/runtime/graphx"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/dataflow"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/flink"
 	_ "github.com/apache/beam/sdks/v2/go/pkg/beam/runners/samza"
@@ -117,11 +118,12 @@ func collectValues(key string, iter func(*int64) bool) (string, []int) {
 	return key, values
 }
 
-// prefixConfig matches the Java StringConfiguration class for the payload.
-// The field must be exported (start with a capital letter).
+// Define a struct that matches the Java StringConfiguration class.
+// The field must be exported to be encoded.
 type prefixConfig struct {
 	Data string
 }
+
 
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
@@ -130,19 +132,31 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create a single, initial impulse.
-	imp := beam.Impulse(s)
-
-	// 2. Use a ParDo to transform the impulse into the PCollection we need.
-	// This ensures the elements are created with timestamp 0 from the beginning.
+	// 1. Create the data using the robust Impulse pattern to avoid -inf timestamps.
 	strings := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
 		emit(0, "a")
 		emit(0, "b")
 		emit(0, "c")
-	}, imp)
+	}, beam.Impulse(s))
 
-	// 3. The rest of the pipeline remains the same.
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+	// 2. Manually create the configuration payload.
+	// This serializes the prefixConfig struct into bytes.
+	payload, err := graphx.EncodePayload(prefixConfig{Data: "prefix_"})
+	if err != nil {
+		t.Fatalf("failed to encode payload: %v", err)
+	}
+
+	// 3. Use the fundamental CrossLanguage transform directly.
+	// This avoids the problematic wrapper and its hidden PCollection.
+	// The URN must match the one registered in the Java expansion service.
+	prefixed := beam.CrossLanguage(s,
+		"beam:xlang:test:prefix", // URN for the prefix transform
+		payload,                  // The configuration payload
+		expansionAddr,            // Address of the expansion service
+		strings,                  // The input PCollection
+		reflect.TypeOf(""))       // The output type
+
+	// 4. Assert the result.
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
