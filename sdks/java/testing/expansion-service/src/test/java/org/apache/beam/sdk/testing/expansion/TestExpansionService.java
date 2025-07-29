@@ -62,6 +62,7 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Immuta
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 
+
 /** An {@link org.apache.beam.sdk.util.construction.expansion.ExpansionService} useful for tests. */
 @SuppressWarnings({
   "rawtypes", // TODO(https://github.com/apache/beam/issues/20447)
@@ -196,17 +197,31 @@ public class TestExpansionService {
       }
     }
 
-    public static class PrefixBuilder
+    public class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+            StringConfiguration, 
+            PCollection<? extends String>, 
+            PCollection<String>> {
       @Override
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-        return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> configuration.data + x)
-            .setCoder(StringUtf8Coder.of());
+        return new PTransform<PCollection<? extends String>, PCollection<String>>() {
+          @Override
+          public PCollection<String> expand(PCollection<? extends String> input) {
+            // 1) apply the MapElements transform
+            PCollection<String> out =
+              input.apply(
+                MapElements
+                  .into(TypeDescriptors.strings())
+                  .via((String x) -> configuration.data + x)
+              );
+            // 2) now force the UTF-8 coder on that PCollection
+            return out.setCoder(StringUtf8Coder.of());
+          }
+        };
       }
     }
+
 
     public static class MultiBuilder
         implements ExternalTransformBuilder<
