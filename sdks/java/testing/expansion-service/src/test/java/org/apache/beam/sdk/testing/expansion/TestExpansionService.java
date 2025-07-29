@@ -232,6 +232,17 @@ public class TestExpansionService {
       }
     }
 
+    // public static class PrefixBuilder
+    //     implements ExternalTransformBuilder<
+    //         StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+    //   @Override
+    //   public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
+    //       StringConfiguration configuration) {
+    //     return MapElements.into(TypeDescriptors.strings())
+    //         .via((String x) -> configuration.data + x);
+    //   }
+    // }
+
     public static class MultiBuilder
         implements ExternalTransformBuilder<
             EmptyConfiguration, PCollectionTuple, PCollectionTuple> {

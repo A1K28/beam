@@ -123,32 +123,6 @@ type prefixConfig struct {
 	Data string
 }
 
-// func TestXLang_Prefix(t *testing.T) {
-// 	integration.CheckFilters(t)
-// 	checkFlags(t)
-
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
-
-// 	// 1. Create the initial PCollection of strings.
-// 	strings := beam.Create(s, "a", "b", "c")
-
-// 	// 2. THIS IS THE FIX: Add a valid timestamp to each element using a ParDo.
-// 	//    This avoids the default "-inf" timestamp that causes the bug.
-// 	timestamped := beam.ParDo(s, func(elm string, et beam.EventTime, emit func(string)) {
-// 		emit(elm)
-// 	}, beam.InjectTimestamp(s, strings))
-
-
-// 	// 3. Call the cross-language transform with the timestamped data.
-// 	prefixed := xlang.Prefix(s, expansionAddr, timestamped)
-
-// 	// 4. The assertion can now pass.
-// 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
-
-// 	ptest.RunAndValidate(t, p)
-// }
-
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
@@ -156,16 +130,28 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
+	// 1. Create the initial PCollection of simple strings.
+	// These elements have a default timestamp of -infinity.
 	strings := beam.Create(s, "a", "b", "c")
 
-	// FIX: Use a ParDo with a timestamp-aware emitter to
-	// explicitly set the timestamp for each element to 0.
-	timestamped := beam.ParDo(s, func(elm string, emit func(typex.EventTime, string)) {
-		emit(0, elm)
+	// 2. Use a single ParDo to perform two critical tasks:
+	//    a) Convert each string into a KV<string, string>. We use a dummy empty string for the key.
+	//    b) Assign a valid timestamp of 0 to each new KV pair.
+	kvsWithTimestamp := beam.ParDo(s, func(elm string, emit func(typex.EventTime, string, string)) {
+		emit(0, "", elm) // Emitting: (timestamp, key, value)
 	}, strings)
 
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
-	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+	// 3. Call the cross-language transform with the correctly formatted and timestamped data.
+	prefixedKVs := xlang.Prefix(s, "prefix_", expansionAddr, kvsWithTimestamp)
+
+	// 4. The Java service returns a PCollection of KVs. We need to extract just the
+	//    value to perform the assertion.
+	prefixedVals := beam.ParDo(s, func(key, val string) string {
+		return val
+	}, prefixedKVs)
+
+	// 5. Assert that the final values are correct.
+	passert.Equals(s, prefixedVals, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
 }
