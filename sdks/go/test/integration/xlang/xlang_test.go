@@ -132,30 +132,13 @@ func TestXLang_Prefix(t *testing.T) {
 
 	// Using the cross-language transform
 	strings := beam.Create(s, "a", "b", "c")
-	prefixed := Prefix(s, "prefix_", expansionAddr, strings)
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
 
 	// Remove all assertions and write the output to a file.
 	textio.Write(s, *output, prefixed)
 
 	ptest.RunAndValidate(t, p)
 }
-
-// func TestXLang_Prefix(t *testing.T) {
-// 	integration.CheckFilters(t)
-// 	checkFlags(t)
-
-// 	p := beam.NewPipeline()
-// 	s := p.Root()
-
-// 	// Using the cross-language transform
-// 	strings := beam.Create(s, "a", "b", "c")
-// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
-
-// 	// Use the correct assertion for unordered collections.
-// 	passert.ContainsInAnyOrder(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
-
-// 	ptest.RunAndValidate(t, p)
-// }
 
 func TestXLang_CoGroupBy(t *testing.T) {
 	integration.CheckFilters(t)
