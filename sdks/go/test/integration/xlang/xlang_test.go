@@ -118,13 +118,6 @@ func collectValues(key string, iter func(*int64) bool) (string, []int) {
 	return key, values
 }
 
-// Define a struct that matches the Java StringConfiguration class.
-// The field must be exported to be encoded.
-type prefixConfig struct {
-	Data string
-}
-
-
 func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
@@ -132,32 +125,26 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// 1. Create the data using the robust Impulse pattern to avoid -inf timestamps.
+	// 1. Create the input PCollection with timestamp 0.
+	imp := beam.Impulse(s)
 	strings := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
 		emit(0, "a")
 		emit(0, "b")
 		emit(0, "c")
-	}, beam.Impulse(s))
+	}, imp)
 
-	// 2. Manually create the configuration payload.
-	// This serializes the prefixConfig struct into bytes.
-	payload, err := graphx.EncodePayload(prefixConfig{Data: "prefix_"})
-	if err != nil {
-		t.Fatalf("failed to encode payload: %v", err)
-	}
+	// 2. Run the transform to get the actual result.
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
 
-	// 3. Use the fundamental CrossLanguage transform directly.
-	// This avoids the problematic wrapper and its hidden PCollection.
-	// The URN must match the one registered in the Java expansion service.
-	prefixed := beam.CrossLanguage(s,
-		"beam:xlang:test:prefix", // URN for the prefix transform
-		payload,                  // The configuration payload
-		expansionAddr,            // Address of the expansion service
-		strings,                  // The input PCollection
-		reflect.TypeOf(""))       // The output type
+	// 3. Manually create the EXPECTED PCollection, also with timestamp 0.
+	expected := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
+		emit(0, "prefix_a")
+		emit(0, "prefix_b")
+		emit(0, "prefix_c")
+	}, imp) // Reuse the same impulse
 
-	// 4. Assert the result.
-	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+	// 4. Assert that the two PCollections are equal.
+	passert.Equals(s, prefixed, expected)
 
 	ptest.RunAndValidate(t, p)
 }
