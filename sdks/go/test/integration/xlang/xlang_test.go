@@ -36,8 +36,6 @@ import (
 )
 
 var expansionAddr string // Populate with expansion address labelled "test".
-var output = flag.String("output", "", "Output file (required).")
-
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*IntString)(nil)).Elem())
@@ -123,19 +121,15 @@ func TestXLang_Prefix(t *testing.T) {
 	integration.CheckFilters(t)
 	checkFlags(t)
 
-	// This is needed to expand the GCS path.
-	flag.Parse()
-	beam.Init()
-
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	// Using the cross-language transform
 	strings := beam.Create(s, "a", "b", "c")
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+	prefixed := Prefix(s, "prefix_", expansionAddr, strings)
 
-	// Remove all assertions and write the output to a file.
-	textio.Write(s, *output, prefixed)
+	// Hardcode the GCS output path directly.
+	outputPath := "gs://aleks-shr-bucket/prefix-output.txt"
+	textio.Write(s, outputPath, prefixed)
 
 	ptest.RunAndValidate(t, p)
 }
