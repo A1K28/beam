@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"sort"
 	"testing"
-	"github.com/apache/beam/sdks/v2/go/pkg/beam/io/textio"
 
 	"github.com/apache/beam/sdks/v2/go/examples/xlang"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
@@ -124,13 +123,10 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
+	// Using the cross-language transform
 	strings := beam.Create(s, "a", "b", "c")
-	// Add the 'xlang.' package qualifier here.
 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
-
-	// Hardcode the GCS output path directly.
-	outputPath := "gs://aleks-shr-bucket/prefix-output.txt"
-	textio.Write(s, outputPath, prefixed)
+	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
 }
