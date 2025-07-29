@@ -507,16 +507,26 @@ createCrossLanguageValidatesRunnerTask(
     "--runner=TestDataflowRunner",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
+    // override the Java harness image for python steps
     "--sdk_harness_container_image_overrides=.*java.*,${dockerJavaImageContainer}:${dockerTag}",
+    // <— add this to force runner v2 and Java harness
+    "--experiments=use_runner_v2",
+    "--experiments=use_portable_java_harness",
   ],
   javaPipelineOptions: [
     "--runner=TestDataflowRunner",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
     "--tempRoot=${dataflowValidatesTempRoot}",
+    // your Java SDK container
     "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
+    // leave Python overrides alone
     "--sdkHarnessContainerImageOverrides=.*python.*,${dockerPythonImageContainer}:${dockerTag}",
-    "--defaultSdkHarnessLogLevel=WARN",
+    // debug is fine but not strictly needed for parsing
+    "--defaultSdkHarnessLogLevel=DEBUG",
+    // <— these two ensure your MapElements/Partition/ParDo run in Java land
+    "--experiments=use_runner_v2",
+    "--experiments=use_portable_java_harness",
   ],
   pytestOptions: [
     "--capture=no",
@@ -530,11 +540,14 @@ createCrossLanguageValidatesRunnerTask(
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    // Set the SDK container override via pipeline_opts
+    // pipeline_opts must include the same experiments for Go too
     "--pipeline_opts",
-    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}'\"",
+    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}' " +
+    "--experiments=use_runner_v2 " +
+    "--experiments=use_portable_java_harness\"",
   ],
 )
+
 
 task validatesRunnerV2 {
   group = "Verification"
