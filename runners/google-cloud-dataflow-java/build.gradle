@@ -516,7 +516,7 @@ createCrossLanguageValidatesRunnerTask(
     "--tempRoot=${dataflowValidatesTempRoot}",
     "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
     "--sdkHarnessContainerImageOverrides=.*python.*,${dockerPythonImageContainer}:${dockerTag}",
-    "--defaultSdkHarnessLogLevel=DEBUG",
+    "--defaultSdkHarnessLogLevel=WARN",
   ],
   pytestOptions: [
     "--capture=no",
