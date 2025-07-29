@@ -109,10 +109,27 @@ jobs:
         run: |
           ./gradlew \
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
+            -Dbeam.it.flags="--dataflow_job_dump_file=dataflow_job_graph.json" \
             --info \
             --stacktrace
         env:
           USER: github-actions
+
+      - name: Upload Dataflow Job Graph
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataflow-job-graph
+          path: "**/dataflow_job_graph.json"
+
+      # - name: Run cross‑language GoUsingJava Dataflow tests
+      #   run: |
+      #     ./gradlew \
+      #       :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
+      #       --info \
+      #       --stacktrace
+      #   env:
+      #     USER: github-actions
       
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
