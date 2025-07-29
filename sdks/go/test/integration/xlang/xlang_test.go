@@ -125,8 +125,10 @@ func TestXLang_Prefix(t *testing.T) {
 
 	// Using the cross-language transform
 	strings := beam.Create(s, "a", "b", "c")
-	_ = xlang.Prefix(s, "prefix_", expansionAddr, strings)
-	// passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+
+	// Use the correct assertion for unordered collections.
+	passert.ContainsInAnyOrder(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
 }
