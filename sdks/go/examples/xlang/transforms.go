@@ -26,6 +26,7 @@ import (
 
 func init() {
 	beam.RegisterType(reflect.TypeOf((*prefixPayload)(nil)).Elem())
+	beam.RegisterType(reflect.TypeOf((*stringElement)(nil)).Elem())
 }
 
 // prefixPayload is a struct used to represent the payload of the Prefix
@@ -34,9 +35,13 @@ func init() {
 // This must match the struct that the expansion service is expecting to
 // receive. For example, at the time of writing this comment, that struct is
 // the one in the following link.
-// https://github.com/apache/beam/blob/v2.29.0/sdks/java/testing/expansion-service/src/test/java/org/apache/beam/sdk/testing/expansion/TestExpansionService.java#L191
+// https://github.com/apache/beam/blob/v2.9.0/sdks/java/testing/expansion-service/src/test/java/org/apache/beam/sdk/testing/expansion/TestExpansionService.java#L191
 type prefixPayload struct {
 	Data string
+}
+
+type stringElement struct {
+	V string
 }
 
 // Prefix wraps a cross-language transform call to the Prefix transform. This
@@ -44,13 +49,29 @@ type prefixPayload struct {
 // prefix string, and appends that as prefix to each input string.
 //
 // This serves as an example of a cross-language transform with a payload.
+
+// func Prefix(s beam.Scope, prefix string, addr string, col beam.PCollection) beam.PCollection {
+// 	s = s.Scope("XLangTest.Prefix")
+
+// 	pl := beam.CrossLanguagePayload(prefixPayload{Data: prefix})
+// 	outT := beam.UnnamedOutput(typex.New(reflectx.String))
+// 	outs := beam.CrossLanguage(s, "beam:transforms:xlang:test:prefix", pl, addr, beam.UnnamedInput(col), outT)
+// 	return outs[beam.UnnamedOutputTag()]
+// }
+
 func Prefix(s beam.Scope, prefix string, addr string, col beam.PCollection) beam.PCollection {
 	s = s.Scope("XLangTest.Prefix")
 
 	pl := beam.CrossLanguagePayload(prefixPayload{Data: prefix})
-	outT := beam.UnnamedOutput(typex.New(reflectx.String))
+    // 1. Define the output type as our new struct.
+	outT := beam.UnnamedOutput(typex.New(reflect.TypeOf((*stringElement)(nil)).Elem()))
 	outs := beam.CrossLanguage(s, "beam:transforms:xlang:test:prefix", pl, addr, beam.UnnamedInput(col), outT)
-	return outs[beam.UnnamedOutputTag()]
+	c := outs[beam.UnnamedOutputTag()]
+
+    // 2. Add a ParDo to unwrap the struct back to a primitive string.
+	return beam.ParDo(s, func(e stringElement) string {
+		return e.V
+	}, c)
 }
 
 func CoGroupByKey(s beam.Scope, addr string, col1, col2 beam.PCollection) beam.PCollection {
