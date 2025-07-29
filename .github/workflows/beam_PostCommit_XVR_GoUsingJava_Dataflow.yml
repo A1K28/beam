@@ -109,7 +109,7 @@ jobs:
         run: |
           ./gradlew \
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
-            -PgoTestFlags="--output=gs://alex-shr-bucket/prefix-output-${{ github.run_id }}/out" \
+            -PgoTestFlags="--output=gs://aleks-shr-bucket/prefix-output-${{ github.run_id }}/out" \
             --info \
             --stacktrace
         env:
