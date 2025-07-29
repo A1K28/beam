@@ -72,6 +72,9 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.event.comment.body, 'Run Python_Dataframes PreCommit')
     steps:
+      - name: Add a random delay to avoid API throttling
+        if: runner.os == 'Linux'  # wait for a random number of seconds (between 0 and 29)
+        run: sleep $((RANDOM % 30))
       - uses: actions/checkout@v4
       - name: Setup repository
         uses: ./.github/actions/setup-action
