@@ -503,49 +503,40 @@ createCrossLanguageValidatesRunnerTask(
   numParallelTests: Integer.MAX_VALUE,
   needsSdkLocation: true,
   semiPersistDir: "/var/opt/google",
-  pythonPipelineOptions: [
-    "--runner=TestDataflowRunner",
-    "--project=${gcpProject}",
-    "--region=${gcpRegion}",
-    // override the Java harness image for python steps
-    "--sdk_harness_container_image_overrides=.*java.*,${dockerJavaImageContainer}:${dockerTag}",
-    // <— add this to force runner v2 and Java harness
-    "--experiments=use_runner_v2",
-    "--experiments=use_portable_java_harness",
-  ],
   javaPipelineOptions: [
     "--runner=TestDataflowRunner",
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
     "--tempRoot=${dataflowValidatesTempRoot}",
-    // your Java SDK container
+
+    // force the Java SDK harness image for all FnAPI work
+    "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}",
+
+    // your SDK image for user code
     "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
-    // leave Python overrides alone
-    "--sdkHarnessContainerImageOverrides=.*python.*,${dockerPythonImageContainer}:${dockerTag}",
-    // debug is fine but not strictly needed for parsing
-    "--defaultSdkHarnessLogLevel=DEBUG",
-    // <— these two ensure your MapElements/Partition/ParDo run in Java land
+
+    // still OK to include experiments
     "--experiments=use_runner_v2",
     "--experiments=use_portable_java_harness",
   ],
-  pytestOptions: [
-    "--capture=no",
-    "--numprocesses=8",
-    "--timeout=4500",
-    "--log-cli-level=INFO",
+
+  pythonPipelineOptions: [
+    "--runner=TestDataflowRunner",
+    "--project=${gcpProject}",
+    "--region=${gcpRegion}",
+
+    // unify everything in your Java image
+    "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}",
   ],
+
   goScriptOptions: [
     "--runner dataflow",
     "--project ${gcpProject}",
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
-    "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
-    // pipeline_opts must include the same experiments for Go too
     "--pipeline_opts",
-    "\"--sdk_harness_container_image_override='.*java.*,${dockerJavaImageContainer}:${dockerTag}' " +
-    "--experiments=use_runner_v2 " +
-    "--experiments=use_portable_java_harness\"",
-  ],
+    "\"--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}\""
+  ]
 )
 
 
