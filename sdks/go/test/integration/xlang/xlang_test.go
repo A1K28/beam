@@ -130,15 +130,19 @@ func TestXLang_Prefix(t *testing.T) {
 	p := beam.NewPipeline()
 	s := p.Root()
 
-	strings := beam.Create(s, "a", "b", "c")
+	// 1. Create a single, initial impulse.
+	imp := beam.Impulse(s)
 
-	// FIX: Use a ParDo with a timestamp-aware emitter to
-	// explicitly set the timestamp for each element to 0.
-	timestamped := beam.ParDo(s, func(elm string, emit func(typex.EventTime, string)) {
-		emit(0, elm)
-	}, strings)
+	// 2. Use a ParDo to transform the impulse into the PCollection we need.
+	// This ensures the elements are created with timestamp 0 from the beginning.
+	strings := beam.ParDo(s, func(_ []byte, emit func(typex.EventTime, string)) {
+		emit(0, "a")
+		emit(0, "b")
+		emit(0, "c")
+	}, imp)
 
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, timestamped)
+	// 3. The rest of the pipeline remains the same.
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
