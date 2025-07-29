@@ -195,17 +195,6 @@ public class TestExpansionService {
       }
     }
 
-    // public static class PrefixBuilder
-    //     implements ExternalTransformBuilder<
-    //         StringConfiguration, PCollection<String>, PCollection<String>> {
-    //   @Override
-    //   public PTransform<PCollection<String>, PCollection<String>> buildExternal(
-    //       StringConfiguration configuration) {
-    //     return MapElements.into(TypeDescriptors.strings())
-    //         .via((String x) -> configuration.data + x);
-    //   }
-    // }
-
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
             StringConfiguration, PCollection<? extends String>, PCollection<String>> {
@@ -213,7 +202,11 @@ public class TestExpansionService {
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
         return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> configuration.data + x);
+            .via((String x) -> {
+              // Add the debug print line here
+              System.err.println("DATAFOW_DEBUG_TEST: My prefix transform is printing this.");
+              return configuration.data + x;
+            });
       }
     }
 
