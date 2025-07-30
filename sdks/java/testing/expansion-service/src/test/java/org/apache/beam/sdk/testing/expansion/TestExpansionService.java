@@ -194,36 +194,32 @@ public class TestExpansionService {
       public void setData(String data) {
         this.data = data;
       }
-    }
 
-    public static class PrefixTransform
-        extends PTransform<PCollection<? extends String>, PCollection<String>> {
-
-      private final String prefix;
-
-      public PrefixTransform(String prefix) {
-        this.prefix = prefix;
-      }
-
-      @Override
-      public PCollection<String> expand(PCollection<? extends String> input) {
-        PCollection<String> mapped =
-            input.apply(
-                "AddPrefix",
-                MapElements.into(TypeDescriptors.strings()).via((String x) -> prefix + x));
-        // here we explicitly attach the coder
-        mapped.setCoder(StringUtf8Coder.of());
-        return mapped;
+      public String getData() {
+        return data;
       }
     }
 
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
             StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+
       @Override
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-        return new PrefixTransform(configuration.data);
+        final String prefix = configuration.getData();
+        return new PTransform<PCollection<? extends String>, PCollection<String>>() {
+          @Override
+          public PCollection<String> expand(PCollection<? extends String> input) {
+            // 1) apply your logic
+            PCollection<String> out =
+                input.apply(
+                    MapElements.into(TypeDescriptors.strings()).via((String x) -> prefix + x));
+            // 2) force the coder on that PCollection
+            out.setCoder(StringUtf8Coder.of());
+            return out;
+          }
+        };
       }
     }
 
