@@ -527,9 +527,6 @@ createCrossLanguageValidatesRunnerTask(
     "--project ${gcpProject}",
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
-
-    "--pipeline_opts", "--defaultWorkerLogLevel=DEBUG",
-
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
     "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
   ],
