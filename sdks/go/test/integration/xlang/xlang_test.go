@@ -125,7 +125,11 @@ func TestXLang_Prefix(t *testing.T) {
 
 	// Using the cross-language transform
 	strings := beam.Create(s, "a", "b", "c")
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, strings)
+
+	// Add a Reshuffle to force a serialization boundary and prevent fusion.
+	reshuffled := beam.Reshuffle(s, strings)
+
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, reshuffled)
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 	ptest.RunAndValidate(t, p)
