@@ -26,7 +26,6 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.expansion.ExternalTransformRegistrar;
 import org.apache.beam.sdk.expansion.service.ExpansionService;
 import org.apache.beam.sdk.expansion.service.TransformProvider;
@@ -68,7 +67,7 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Immuta
 })
 public class TestExpansionService {
 
-  private static final String TEST_PREFIX_URN = "beam:transforms:xlang:test:prefix";
+  // private static final String TEST_PREFIX_URN = "beam:transforms:xlang:test:prefix";
   private static final String TEST_MULTI_URN = "beam:transforms:xlang:test:multi";
   private static final String TEST_GBK_URN = "beam:transforms:xlang:test:gbk";
   private static final String TEST_CGBK_URN = "beam:transforms:xlang:test:cgbk";
@@ -172,7 +171,7 @@ public class TestExpansionService {
     public Map<String, Class<? extends ExternalTransformBuilder<?, ?, ?>>> knownBuilders() {
       ImmutableMap.Builder<String, Class<? extends ExternalTransformBuilder<?, ?, ?>>> builder =
           ImmutableMap.builder();
-      builder.put(TEST_PREFIX_URN, PrefixBuilder.class);
+      // builder.put(TEST_PREFIX_URN, PrefixBuilder.class);
       builder.put(TEST_MULTI_URN, MultiBuilder.class);
       builder.put(TEST_GBK_URN, GBKBuilder.class);
       builder.put(TEST_COMGL_URN, CombineGloballyBuilder.class);
@@ -200,28 +199,28 @@ public class TestExpansionService {
       }
     }
 
-    public static class PrefixBuilder
-        implements ExternalTransformBuilder<
-            StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+    // public static class PrefixBuilder
+    //     implements ExternalTransformBuilder<
+    //         StringConfiguration, PCollection<? extends String>, PCollection<String>> {
 
-      @Override
-      public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
-          StringConfiguration configuration) {
-        final String prefix = configuration.getData();
-        return new PTransform<PCollection<? extends String>, PCollection<String>>() {
-          @Override
-          public PCollection<String> expand(PCollection<? extends String> input) {
-            // 1) apply your logic
-            PCollection<String> out =
-                input.apply(
-                    MapElements.into(TypeDescriptors.strings()).via((String x) -> prefix + x));
-            // 2) force the coder on that PCollection
-            out.setCoder(StringUtf8Coder.of());
-            return out;
-          }
-        };
-      }
-    }
+    //   @Override
+    //   public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
+    //       StringConfiguration configuration) {
+    //     final String prefix = configuration.getData();
+    //     return new PTransform<PCollection<? extends String>, PCollection<String>>() {
+    //       @Override
+    //       public PCollection<String> expand(PCollection<? extends String> input) {
+    //         // 1) apply your logic
+    //         PCollection<String> out =
+    //             input.apply(
+    //                 MapElements.into(TypeDescriptors.strings()).via((String x) -> prefix + x));
+    //         // 2) force the coder on that PCollection
+    //         out.setCoder(StringUtf8Coder.of());
+    //         return out;
+    //       }
+    //     };
+    //   }
+    // }
 
     public static class MultiBuilder
         implements ExternalTransformBuilder<

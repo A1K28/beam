@@ -206,6 +206,7 @@ include(":sdks:java:extensions:sql:udf")
 include(":sdks:java:extensions:sql:udf-test-provider")
 include(":sdks:java:extensions:timeseries")
 include(":sdks:java:extensions:yaml")
+include(":sdks:java:extensions:xlang")
 include(":sdks:java:extensions:zetasketch")
 include(":sdks:java:harness")
 include(":sdks:java:harness:jmh")
@@ -372,3 +373,10 @@ include("sdks:java:io:iceberg:bqms")
 findProject(":sdks:java:io:iceberg:bqms")?.name = "bqms"
 include("it:clickhouse")
 findProject(":it:clickhouse")?.name = "clickhouse"
+
+include(":sdks:java:model:proto")
+project(":sdks:java:model:proto").projectDir = file("sdks/java/model/proto")
+
+include(":sdks:java:extensions:xlang")
+project(":sdks:java:extensions:xlang").projectDir = file("sdks/java/extensions/xlang")
+

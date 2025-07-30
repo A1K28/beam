@@ -1,0 +1,10 @@
+syntax = "proto3";
+package org.apache.beam.sdk.extensions.xlang;
+
+option java_package = "org.apache.beam.sdk.extensions.xlang";
+option java_outer_classname = "StringConfigurationProto";
+
+// The one-and-only field is your prefix text.
+message StringConfiguration {
+  string data = 1;
+}

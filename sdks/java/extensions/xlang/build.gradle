@@ -1,0 +1,64 @@
+import org.gradle.api.tasks.Copy
+import org.gradle.api.file.DuplicatesStrategy
+
+plugins {
+  id 'java-library'
+  id 'com.google.protobuf'
+}
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(8)
+  }
+}
+
+// Avoid shipping .proto files as runtime resources
+tasks.named('processResources', Copy) {
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  exclude '**/*.proto'
+}
+
+group = 'org.apache.beam.sdk.extensions'
+version = project.rootProject.version
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+  maven {
+    url = uri("https://repository.apache.org/content/repositories/snapshots")
+  }
+}
+
+dependencies {
+  implementation 'com.google.protobuf:protobuf-java:3.19.4'
+  implementation project(':sdks:java:core')
+  implementation 'org.apache.beam:beam-model-pipeline:2.68.0-SNAPSHOT'
+  implementation project(':sdks:java:expansion-service')
+  implementation project(":sdks:java:core")
+  compileOnly "com.google.auto.service:auto-service-annotations:1.0.1"
+  annotationProcessor "com.google.auto.service:auto-service:1.0.1"
+}
+
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:3.19.4"
+  }
+  generateProtoTasks {
+    all().each { task ->
+      task.builtins {
+        java { }
+      }
+    }
+  }
+}
+
+sourceSets {
+  main {
+    proto {
+      srcDir 'src/main/proto'
+    }
+    java {
+      srcDirs 'src/main/java'
+    }
+  }
+}
