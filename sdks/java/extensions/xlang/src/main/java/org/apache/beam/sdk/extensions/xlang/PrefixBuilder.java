@@ -6,8 +6,6 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public class PrefixBuilder
@@ -16,30 +14,26 @@ public class PrefixBuilder
         PCollection<? extends String>,
         PCollection<String>> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(PrefixBuilder.class);
   public static final String URN = "beam:transforms:xlang:test:prefix";
 
   @Override
   public PTransform<PCollection<? extends String>, PCollection<String>>
   buildExternal(StringConfigurationProto.StringConfiguration.Builder cfgBuilder) {
-    String prefix = cfgBuilder.getData();
-    LOG.info("[PrefixBuilder] received prefix='{}'", prefix);
+    final String prefix = cfgBuilder.getData();
 
-    PTransform<PCollection<? extends String>, PCollection<String>> xform =
-      new PTransform<PCollection<? extends String>, PCollection<String>>() {
-        @Override
-        public PCollection<String> expand(PCollection<? extends String> in) {
-          PCollection<String> out = in.apply(
-            MapElements.into(TypeDescriptors.strings())
-                       .via(s -> prefix + s)
-          );
-          out.setCoder(StringUtf8Coder.of());
-          LOG.info("[PrefixBuilder] applied MapElements + setCoder(StringUtf8Coder)");
-          return out;
-        }
-      };
-
-    LOG.info("[PrefixBuilder] built PTransform: {}", xform);
-    return xform;
+    // Wrap in an anonymous PTransform so we can explicitly setCoder(...)
+    return new PTransform<PCollection<? extends String>, PCollection<String>>() {
+      @Override
+      public PCollection<String> expand(PCollection<? extends String> input) {
+        PCollection<String> out = input.apply(
+            MapElements
+              .into(TypeDescriptors.strings())
+              .via((String x) -> prefix + x)
+        );
+        // this is what ensures the expansion response uses beam:coder:string_utf8:v1
+        out.setCoder(StringUtf8Coder.of());
+        return out;
+      }
+    };
   }
 }

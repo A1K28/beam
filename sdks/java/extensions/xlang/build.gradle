@@ -33,7 +33,6 @@ dependencies {
   implementation 'com.google.protobuf:protobuf-java:3.19.4'
   implementation project(':sdks:java:core')
   implementation 'org.apache.beam:beam-model-pipeline:2.68.0-SNAPSHOT'
-  implementation 'org.slf4j:slf4j-simple:1.7.9'
   implementation project(':sdks:java:expansion-service')
   implementation project(":sdks:java:core")
   compileOnly "com.google.auto.service:auto-service-annotations:1.0.1"
