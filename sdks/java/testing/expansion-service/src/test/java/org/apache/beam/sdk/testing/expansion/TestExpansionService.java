@@ -198,23 +198,36 @@ public class TestExpansionService {
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
             StringConfiguration, PCollection<KV<byte[], String>>, PCollection<String>> {
+
       @Override
       public PTransform<PCollection<KV<byte[], String>>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
         return new PTransform<PCollection<KV<byte[], String>>, PCollection<String>>() {
           @Override
           public PCollection<String> expand(PCollection<KV<byte[], String>> input) {
-            // 1. Extract the values from the KV PCollection
-            PCollection<String> values = input.apply(Values.create());
-
-            // 2. Apply the original prefixing logic
-            return values.apply(
-                "Prefixing",
-                MapElements.into(TypeDescriptors.strings())
-                    .via((String x) -> configuration.data + x));
+            // Ignore the input and just create a new PCollection.
+            return input.getPipeline().apply(Create.of("data", "received", "successfully"));
           }
         };
       }
+      
+      // @Override
+      // public PTransform<PCollection<KV<byte[], String>>, PCollection<String>> buildExternal(
+      //     StringConfiguration configuration) {
+      //   return new PTransform<PCollection<KV<byte[], String>>, PCollection<String>>() {
+      //     @Override
+      //     public PCollection<String> expand(PCollection<KV<byte[], String>> input) {
+      //       // 1. Extract the values from the KV PCollection
+      //       PCollection<String> values = input.apply(Values.create());
+
+      //       // 2. Apply the original prefixing logic
+      //       return values.apply(
+      //           "Prefixing",
+      //           MapElements.into(TypeDescriptors.strings())
+      //               .via((String x) -> configuration.data + x));
+      //     }
+      //   };
+      // }
     }
 
     // public static class PrefixBuilder

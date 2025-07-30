@@ -137,7 +137,11 @@ func TestXLang_Prefix(t *testing.T) {
     // FIX: Wrap the simple PCollection<string> into a PCollection<KV<[]byte, string>>
     kvs := beam.ParDo(s, wrapStringInKV, reshuffled)
 
-	// Now pass the KV PCollection to the external transform
+	// After wrapping your elements into a KV
+	kvType := beam.NewKVType(beam.NewBytesType(), beam.NewStringType())
+	kvCoder := beam.NewCoder(kvType)
+	beam.WithCoder(s, kvCoder, kvs) // Explicitly set the coder on the PCollection
+
 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
 
 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
