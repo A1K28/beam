@@ -60,8 +60,7 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
-
+import org.apache.beam.sdk.util.construction.External;
 
 /** An {@link org.apache.beam.sdk.util.construction.expansion.ExpansionService} useful for tests. */
 @SuppressWarnings({
@@ -199,17 +198,21 @@ public class TestExpansionService {
 
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration,
-            PCollection<? extends String>,
-            PCollection<String>> {
+            StringConfiguration, PCollection<String>, PCollection<String>> {
+
+      private static final String URN = "beam:transforms:xlang:test:prefix";
+
       @Override
-      public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
+      public PTransform<PCollection<String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-        // “beam:transforms:xlang:prefix:v1” is your URN
-        return External
-            .of("beam:transforms:xlang:prefix:v1", configuration)
-            // THIS is the key: pin the coder URN on the External output
-            .withOutputCoders(StringUtf8Coder.of());
+
+        // Build an ExternalTransform that embeds both input and output coder URNs...
+        return External.of(
+            URN,
+            configuration,
+            StringUtf8Coder.of(),   // input coder
+            StringUtf8Coder.of()    // output coder
+        );
       }
     }
 
