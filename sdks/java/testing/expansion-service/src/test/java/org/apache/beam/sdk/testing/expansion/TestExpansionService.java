@@ -197,7 +197,7 @@ public class TestExpansionService {
       }
     }
 
-    public class PrefixBuilder
+    public static class PrefixBuilder
         implements ExternalTransformBuilder<
             StringConfiguration, 
             PCollection<? extends String>, 
