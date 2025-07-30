@@ -18,7 +18,7 @@ package xlang
 import (
 	"flag"
 	"fmt"
-	"log"
+	// "log"
 	"reflect"
 	"sort"
 	"testing"
@@ -267,14 +267,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	beam.Init()
 
-	services := integration.NewExpansionServices()
-	defer func() { services.Shutdown() }()
-	addr, err := services.GetAddr("test")
-	if err != nil {
-		log.Printf("skipping missing expansion service: %v", err)
-	} else {
-		expansionAddr = addr
-	}
+	expansionAddr = "localhost:8097"
 
 	ptest.MainRet(m)
 }

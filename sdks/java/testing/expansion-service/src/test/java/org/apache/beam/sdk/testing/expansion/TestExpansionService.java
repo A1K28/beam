@@ -60,7 +60,6 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
-import org.apache.beam.sdk.util.construction.External;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 
 /** An {@link org.apache.beam.sdk.util.construction.expansion.ExpansionService} useful for tests. */
@@ -199,21 +198,14 @@ public class TestExpansionService {
 
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration, PCollection<String>, PCollection<String>> {
-
-      private static final String URN = "beam:transforms:xlang:test:prefix";
-
+            StringConfiguration, PCollection<? extends String>, PCollection<String>> {
       @Override
-      public PTransform<PCollection<String>, PCollection<String>> buildExternal(
+      public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-
-        // Build an ExternalTransform that embeds both input and output coder URNs...
-        return External.of(
-            URN,
-            configuration,
-            StringUtf8Coder.of(),   // input coder
-            StringUtf8Coder.of()    // output coder
-        );
+        return MapElements.into(TypeDescriptors.strings())
+            .via((String x) -> configuration.data + x)
+            .withOutputType(TypeDescriptors.strings())
+            .withOutputCoder(StringUtf8Coder.of());
       }
     }
 

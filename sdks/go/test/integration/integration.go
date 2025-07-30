@@ -293,7 +293,7 @@ var dataflowFilters = []string{
 	"TestXLang_Multi",
 	"TestXLang_Partition",
 	"TestBigQueryIO_BasicWriteRead",
-	"TestBigtableIO_BasicWriteRead"
+	"TestBigtableIO_BasicWriteRead",
 	// The Dataflow runner doesn't work with tests using testcontainers locally.
 	"TestJDBCIO_BasicReadWrite",
 	"TestJDBCIO_PostgresReadWrite",
