@@ -509,15 +509,15 @@ createCrossLanguageValidatesRunnerTask(
     "--region=${gcpRegion}",
     "--tempRoot=${dataflowValidatesTempRoot}",
 
-    // force the Java SDK harness image for all FnAPI work
-    "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}",
-
-    // your SDK image for user code
-    "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
-
-    // still OK to include experiments
+    // 1) force FnAPI v2 & Java harness
     "--experiments=use_runner_v2",
     "--experiments=use_portable_java_harness",
+
+    // 2) override the worker harness container to *your* Java SDK image
+    "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}",
+
+    // 3) still pin your SDK image for user transforms
+    "--sdkContainerImage=${dockerJavaImageContainer}:${dockerTag}",
   ],
 
   pythonPipelineOptions: [
@@ -525,7 +525,7 @@ createCrossLanguageValidatesRunnerTask(
     "--project=${gcpProject}",
     "--region=${gcpRegion}",
 
-    // unify everything in your Java image
+    // also force Python steps to talk to your Java harness (optional)
     "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}",
   ],
 
@@ -535,7 +535,9 @@ createCrossLanguageValidatesRunnerTask(
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
     "--pipeline_opts",
-    "\"--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}\""
+      "\"--experiments=use_runner_v2 " +
+       "--experiments=use_portable_java_harness " +
+       "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}\""
   ]
 )
 
