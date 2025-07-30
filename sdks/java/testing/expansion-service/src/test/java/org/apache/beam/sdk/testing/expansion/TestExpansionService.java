@@ -197,14 +197,36 @@ public class TestExpansionService {
 
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+            StringConfiguration, PCollection<KV<byte[], String>>, PCollection<String>> {
       @Override
-      public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
+      public PTransform<PCollection<KV<byte[], String>>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-        return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> configuration.data + x);
+        return new PTransform<PCollection<KV<byte[], String>>, PCollection<String>>() {
+          @Override
+          public PCollection<String> expand(PCollection<KV<byte[], String>> input) {
+            // 1. Extract the values from the KV PCollection
+            PCollection<String> values = input.apply(Values.create());
+
+            // 2. Apply the original prefixing logic
+            return values.apply(
+                "Prefixing",
+                MapElements.into(TypeDescriptors.strings())
+                    .via((String x) -> configuration.data + x));
+          }
+        };
       }
     }
+
+    // public static class PrefixBuilder
+    //     implements ExternalTransformBuilder<
+    //         StringConfiguration, PCollection<? extends String>, PCollection<String>> {
+    //   @Override
+    //   public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
+    //       StringConfiguration configuration) {
+    //     return MapElements.into(TypeDescriptors.strings())
+    //         .via((String x) -> configuration.data + x);
+    //   }
+    // }
 
     public static class MultiBuilder
         implements ExternalTransformBuilder<
