@@ -112,15 +112,6 @@ jobs:
       - name: Build & push Java SDK harness container
         run: ./gradlew :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
 
-      - name: Launch ExpansionService on 8097
-        run: |
-          nohup ./gradlew \
-            :sdks:java:testing:expansion-service:run \
-            --args="8097" \
-            > expansion.log 2>&1 &
-          # wait for the service to bind
-          sleep 5
-
       - name: Run cross‑language GoUsingJava Dataflow tests
         run: |
           ./gradlew \
