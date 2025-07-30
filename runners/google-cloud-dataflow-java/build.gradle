@@ -536,8 +536,7 @@ createCrossLanguageValidatesRunnerTask(
     "--region ${gcpRegion}",
     "--pipeline_opts",
       "\"--experiments=use_runner_v2 " +
-       "--experiments=use_portable_java_harness " +
-       "--workerHarnessContainerImage=${dockerJavaImageContainer}:${dockerTag}\""
+       "--experiments=use_portable_java_harness\""
   ]
 )
 
