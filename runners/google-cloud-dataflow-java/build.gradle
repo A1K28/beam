@@ -528,7 +528,8 @@ createCrossLanguageValidatesRunnerTask(
     "--dataflow_project ${gcpProject}",
     "--region ${gcpRegion}",
 
-    "--defaultWorkerLogLevel=DEBUG",
+    // "--pipeline_opts=--defaultWorkerLogLevel=DEBUG",
+    "--pipeline_opts=--defaultWorkerLogLevel=DEBUG --workerLogLevelOverrides={\"org.apache.beam.runners.fnexecution\":\"DEBUG\",\"org.apache.beam.fn.harness\":\"DEBUG\"}",
 
     "--tests \"./test/integration/xlang ./test/integration/io/xlang/...\"",
     "--sdk_overrides \".*java.*,${dockerJavaImageContainer}:${dockerTag}\"",
