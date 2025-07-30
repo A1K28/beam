@@ -199,29 +199,19 @@ public class TestExpansionService {
 
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration, 
-            PCollection<? extends String>, 
+            StringConfiguration,
+            PCollection<? extends String>,
             PCollection<String>> {
       @Override
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-        return new PTransform<PCollection<? extends String>, PCollection<String>>() {
-          @Override
-          public PCollection<String> expand(PCollection<? extends String> input) {
-            // 1) apply the MapElements transform
-            PCollection<String> out =
-              input.apply(
-                MapElements
-                  .into(TypeDescriptors.strings())
-                  .via((String x) -> configuration.data + x)
-              );
-            // 2) now force the UTF-8 coder on that PCollection
-            return out.setCoder(StringUtf8Coder.of());
-          }
-        };
+        // “beam:transforms:xlang:prefix:v1” is your URN
+        return External
+            .of("beam:transforms:xlang:prefix:v1", configuration)
+            // THIS is the key: pin the coder URN on the External output
+            .withOutputCoders(StringUtf8Coder.of());
       }
     }
-
 
     public static class MultiBuilder
         implements ExternalTransformBuilder<
