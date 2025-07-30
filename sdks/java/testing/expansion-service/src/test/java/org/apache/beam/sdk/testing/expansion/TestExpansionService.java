@@ -26,6 +26,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.expansion.ExternalTransformRegistrar;
 import org.apache.beam.sdk.expansion.service.ExpansionService;
 import org.apache.beam.sdk.expansion.service.TransformProvider;
@@ -60,7 +61,6 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 
 /** An {@link org.apache.beam.sdk.util.construction.expansion.ExpansionService} useful for tests. */
 @SuppressWarnings({
@@ -196,16 +196,34 @@ public class TestExpansionService {
       }
     }
 
+    public static class PrefixTransform
+        extends PTransform<PCollection<? extends String>, PCollection<String>> {
+
+      private final String prefix;
+
+      public PrefixTransform(String prefix) {
+        this.prefix = prefix;
+      }
+
+      @Override
+      public PCollection<String> expand(PCollection<? extends String> input) {
+        PCollection<String> mapped =
+            input.apply(
+                "AddPrefix",
+                MapElements.into(TypeDescriptors.strings()).via((String x) -> prefix + x));
+        // here we explicitly attach the coder
+        mapped.setCoder(StringUtf8Coder.of());
+        return mapped;
+      }
+    }
+
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
             StringConfiguration, PCollection<? extends String>, PCollection<String>> {
       @Override
       public PTransform<PCollection<? extends String>, PCollection<String>> buildExternal(
           StringConfiguration configuration) {
-        return MapElements.into(TypeDescriptors.strings())
-            .via((String x) -> configuration.data + x)
-            .withOutputType(TypeDescriptors.strings())
-            .withOutputCoder(StringUtf8Coder.of());
+        return new PrefixTransform(configuration.data);
       }
     }
 
