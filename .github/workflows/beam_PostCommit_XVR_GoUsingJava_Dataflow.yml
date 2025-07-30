@@ -113,13 +113,15 @@ jobs:
         run: ./gradlew :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
 
       - name: Run cross‑language GoUsingJava Dataflow tests
+        env:
+          GRPC_TRACE: all
+          GRPC_VERBOSITY: DEBUG
+          USER: github-actions
         run: |
           ./gradlew \
             :runners:google-cloud-dataflow-java:validatesCrossLanguageRunnerGoUsingJava \
             --info \
             --stacktrace
-        env:
-          USER: github-actions
       
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
