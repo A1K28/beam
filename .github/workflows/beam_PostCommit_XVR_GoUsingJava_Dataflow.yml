@@ -82,6 +82,10 @@ jobs:
           echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
 
+      - name: TEST
+        run: |
+          ./gradlew :sdks:java:testing:expansion-service:run --args="8097"
+
       - name: Run TestXLang_Prefix on Dataflow
         env:
           GO111MODULE: "on"
