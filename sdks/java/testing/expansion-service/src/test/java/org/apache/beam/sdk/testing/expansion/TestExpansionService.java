@@ -24,9 +24,9 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.beam.model.pipeline.v1.ExternalTransforms.ExternalConfigurationPayload;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.expansion.ExternalTransformRegistrar;
 import org.apache.beam.sdk.expansion.service.ExpansionService;
 import org.apache.beam.sdk.expansion.service.TransformProvider;
@@ -196,49 +196,26 @@ public class TestExpansionService {
       }
     }
 
-    // public static class PrefixBuilder
-    //     implements ExternalTransformBuilder<
-    //         StringConfiguration, PCollection<KV<byte[], String>>, PCollection<String>> {
-    //   @Override
-    //   public PTransform<PCollection<KV<byte[], String>>, PCollection<String>> buildExternal(
-    //       StringConfiguration configuration) {
-    //     return new PTransform<PCollection<KV<byte[], String>>, PCollection<String>>() {
-    //       @Override
-    //       public PCollection<String> expand(PCollection<KV<byte[], String>> input) {
-    //         // 1. Extract the values from the KV PCollection
-    //         PCollection<String> values = input.apply(Values.create());
-
-    //         // 2. Apply the original prefixing logic
-    //         return values.apply(
-    //             "Prefixing",
-    //             MapElements.into(TypeDescriptors.strings())
-    //                 .via((String x) -> configuration.data + x));
-    //       }
-    //     };
-    //   }
-    // }
-
     public static class PrefixBuilder
         implements ExternalTransformBuilder<
-            StringConfiguration, PCollection<String>, PCollection<String>> {
+            ExternalConfigurationPayload, PCollection<String>, PCollection<String>> {
 
       @Override
       public PTransform<PCollection<String>, PCollection<String>> buildExternal(
-          StringConfiguration config) {
-        // Return a composite transform that sets the coder for its output.
+          ExternalConfigurationPayload protoPayload) { // The payload will be ignored
+
+        // The builder returns a PTransform containing the actual logic.
         return new PTransform<PCollection<String>, PCollection<String>>() {
           @Override
           public PCollection<String> expand(PCollection<String> input) {
-            PCollection<String> output =
-                input.apply(
-                    MapElements.into(TypeDescriptors.strings()).via((String x) -> config.data + x));
-            // now set the coder explicitly on the PCollection:
-            return output.setCoder(StringUtf8Coder.of());
+            // HARDCODE the prefix for this test
+            final String prefix = "prefix_";
+            return input.apply(
+                "AddPrefix", MapElements.into(TypeDescriptors.strings()).via(s -> prefix + s));
           }
         };
       }
     }
-
     // public static class PrefixBuilder
     //     implements ExternalTransformBuilder<
     //         StringConfiguration, PCollection<? extends String>, PCollection<String>> {

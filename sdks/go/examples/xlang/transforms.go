@@ -17,11 +17,15 @@
 package xlang
 
 import (
+	"log"
 	"reflect"
 
 	"github.com/apache/beam/sdks/v2/go/pkg/beam"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/typex"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/util/reflectx"
+
+	pipepb "github.com/apache/beam/sdks/v2/go/pkg/beam/model/pipeline_v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -44,10 +48,31 @@ type prefixPayload struct {
 // prefix string, and appends that as prefix to each input string.
 //
 // This serves as an example of a cross-language transform with a payload.
+// func Prefix(s beam.Scope, prefix string, addr string, col beam.PCollection) beam.PCollection {
+// 	s = s.Scope("XLangTest.Prefix")
+
+// 	pl := beam.CrossLanguagePayload(prefixPayload{Data: prefix})
+// 	outT := beam.UnnamedOutput(typex.New(reflectx.String))
+// 	outs := beam.CrossLanguage(s, "beam:transforms:xlang:test:prefix", pl, addr, beam.UnnamedInput(col), outT)
+// 	return outs[beam.UnnamedOutputTag()]
+// }
+
 func Prefix(s beam.Scope, prefix string, addr string, col beam.PCollection) beam.PCollection {
 	s = s.Scope("XLangTest.Prefix")
 
-	pl := beam.CrossLanguagePayload(prefixPayload{Data: prefix})
+	// 1. Create the ExternalConfigurationPayload using the fields your compiler sees.
+	// We will place the raw bytes of the prefix string directly into the Payload field.
+	configPayload := &pipepb.ExternalConfigurationPayload{
+		Payload: []byte(prefix),
+	}
+
+	// 2. Marshal the payload into a byte slice.
+	pl, err := proto.Marshal(configPayload)
+	if err != nil {
+		log.Fatalf("failed to marshal cross-language payload: %v", err)
+	}
+
+	// 3. Make the CrossLanguage call with the correctly structured payload.
 	outT := beam.UnnamedOutput(typex.New(reflectx.String))
 	outs := beam.CrossLanguage(s, "beam:transforms:xlang:test:prefix", pl, addr, beam.UnnamedInput(col), outT)
 	return outs[beam.UnnamedOutputTag()]

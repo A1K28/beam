@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.expansion.service;
 
+import com.fasterxml.jackson.annotation.JsonCreator; // Add this import
+import com.fasterxml.jackson.annotation.JsonProperty; // Add this import
 import com.google.auto.value.AutoValue;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -38,8 +40,10 @@ public abstract class ExpansionServiceConfig {
     return create(new ArrayList<>(), new HashMap<>());
   }
 
+  @JsonCreator
   public static ExpansionServiceConfig create(
-      List<String> allowlist, Map<String, List<Dependency>> dependencies) {
+      @JsonProperty("allowlist") List<String> allowlist,
+      @JsonProperty("dependencies") Map<String, List<Dependency>> dependencies) {
     if (allowlist == null) {
       allowlist = new ArrayList<>();
     }
