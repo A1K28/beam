@@ -304,14 +304,17 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	beam.Init()
 
-	services := integration.NewExpansionServices()
-	defer func() { services.Shutdown() }()
-	addr, err := services.GetAddr("test")
-	if err != nil {
-		log.Printf("skipping missing expansion service: %v", err)
-	} else {
-		expansionAddr = addr
-	}
+	log.Printf("Attaching to existing expansion serice")
+	expansionAddr = "localhost:8097"
+
+	// services := integration.NewExpansionServices()
+	// defer func() { services.Shutdown() }()
+	// addr, err := services.GetAddr("test")
+	// if err != nil {
+	// 	log.Printf("skipping missing expansion service: %v", err)
+	// } else {
+	// 	expansionAddr = addr
+	// }
 
 	ptest.MainRet(m)
 }
