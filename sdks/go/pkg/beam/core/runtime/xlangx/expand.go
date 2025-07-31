@@ -40,7 +40,8 @@ import (
 // an expansion service endpoint.
 const maxRetries = 5
 
-// Expand expands an ExternalTransform by calling out to the configured expansion service.
+
+// Expand expands an ExternalTransform by calling the configured expansion service.
 func Expand(edge *graph.MultiEdge, ext *graph.ExternalTransform) error {
     // 1) Marshal just this one edge into a mini‐pipeline.
     p, err := graphx.Marshal([]*graph.MultiEdge{edge}, &graphx.Options{})
@@ -49,7 +50,7 @@ func Expand(edge *graph.MultiEdge, ext *graph.ExternalTransform) error {
     }
     comps := p.GetComponents()
 
-    // 2) Strip away any composites until the only transform left is our External.
+    // 2) Strip away composite parents until the only transform left is our External.
     transforms := comps.GetTransforms()
     rootID := p.GetRootTransformIds()[0]
     for transforms[rootID].GetUniqueName() != "External" {
@@ -63,31 +64,37 @@ func Expand(edge *graph.MultiEdge, ext *graph.ExternalTransform) error {
     }
     extProto := transforms[rootID]
 
-    // 3) Scope it under its namespace, then remove it from the map so
-    //    expand() will invoke it via the ExpansionRequest.
+    // 3) Namespace-scope it and remove it so expand() invokes it via the ExpansionRequest.
     addNamespace(extProto, comps, ext.Namespace)
     delete(transforms, rootID)
 
-    // 4) Register any missing coders. In particular your input PCollection
-    //    “n3” had coder “c0” but wasn’t in comps.Coders, so Java was rejecting it.
+    // 4) Register any missing coders for *all* PCollections in the request.
+    //    In particular this makes sure your input ("n3") has its coder entry.
     for _, pc := range comps.GetPcollections() {
         cid := pc.GetCoderId()
-        if _, found := comps.GetCoders()[cid]; !found {
+        if _, ok := comps.GetCoders()[cid]; !ok {
             comps.Coders[cid] = &pipepb.Coder{
-                Spec: &pipepb.FunctionSpec{
-                    Urn: "beam:coder:string_utf8:v1",
-                },
+                Spec: &pipepb.FunctionSpec{Urn: "beam:coder:string_utf8:v1"},
             }
         }
     }
 
-    // 5) Fire off the expansion request.
+    // 5) ***DATAFLOW HACK***: request that the expansion service
+    //    explicitly wire our output coder into the transform spec.
+    //    That ensures the Dataflow FnAPI harness sees the right coder.
+    if idx, ok := edge.External.OutputsMap[graph.UnnamedOutputTag]; ok {
+        edge.External.OutputsMap = map[string]int{
+            xlang.SetOutputCoder: idx,
+        }
+    }
+
+    // 6) Fire off the expansion request.
     res, err := expand(context.Background(), comps, extProto, edge, ext)
     if err != nil {
         return err
     }
 
-    // 6) Save the expanded transform back into the ExternalTransform.
+    // 7) Stash the response back into the ExternalTransform.
     ext.Expanded = &graph.ExpandedTransform{
         Components:   res.GetComponents(),
         Transform:    res.GetTransform(),
