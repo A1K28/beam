@@ -109,7 +109,7 @@ jobs:
           GO111MODULE: "on"
         run: |
           # Start expansion service in background
-          java -jar sdks/java/testing/expansion-service/build/libs/*-all.jar 8097 &
+          ./gradlew :sdks:java:testing:expansion-service:run --args="8097" &
           EXP_PID=$!
           # Give it a moment to open the port
           sleep 10
