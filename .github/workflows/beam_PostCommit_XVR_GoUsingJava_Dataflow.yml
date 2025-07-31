@@ -100,7 +100,6 @@ jobs:
             --project ${GCP_PROJECT} \
             --region  ${GCP_REGION} \
             --expansion_addr=localhost:8097 \
-            --sdk_overrides '.*java.*,gcr.io/apache-beam-testing/beam_sdk/beam_java11_sdk:latest'
           popd
 
           # 3  Shut down the expansion service
