@@ -54,27 +54,12 @@ jobs:
       - uses: actions/checkout@v4
 
       # ───────── Set up build tools and languages ──────────────────────────────
-      - name: Setup environment (Java 17, Go 1.x, Python 3.x)
+      - name: Setup environment (Java, Go, Python)
         uses: ./.github/actions/setup-environment-action
         with:
           java-version: default
           go-version: default
           python-version: default
-
-      # ───────── (Optional) Cache Gradle and Go modules ────────────────────────
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            $HOME/go/pkg/mod
-          key: gomod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
 
       # ───────── Authenticate to GCP and Dataflow ──────────────────────────────
       - name: Set up gcloud SDK
@@ -96,12 +81,6 @@ jobs:
         run: |
           echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
-
-      # ───────── Build the Java expansion-service fat JAR ──────────────────────
-      - name: Build expansion service JAR
-        run: |
-          ./gradlew :sdks:java:testing:expansion-service:shadowJar \
-            --no-daemon --parallel --max-workers=2
 
       # ───────── Run one Go-using-Java test on Dataflow ────────────────────────
       - name: Run TestXLang_Prefix on Dataflow
