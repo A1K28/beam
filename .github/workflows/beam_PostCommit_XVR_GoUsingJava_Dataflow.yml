@@ -94,8 +94,7 @@ jobs:
           sleep 10
 
           # Run the single test
-          cd sdks/go/test/integration/xlang
-          go test -v ./sdks/v2/go/test/integration/xlang \
+          go test -v ./sdks/go/test/integration/xlang \
             -run '^TestXLang_Prefix$' \
             -runner=dataflow \
             --project ${GCP_PROJECT} \
