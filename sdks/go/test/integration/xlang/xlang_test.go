@@ -121,34 +121,6 @@ func collectValues(key string, iter func(*int64) bool) (string, []int) {
 	return key, values
 }
 
-func TestXLang_Prefix(t *testing.T) {
-	integration.CheckFilters(t)
-	checkFlags(t)
-
-	p := beam.NewPipeline()
-	s := p.Root()
-
-	// Using the cross-language transform
-	strings := beam.Create(s, "a", "b", "c")
-
-	// Add a Reshuffle to force a serialization boundary and prevent fusion.
-	reshuffled := beam.Reshuffle(s, strings)
-
-    // FIX: Wrap the simple PCollection<string> into a PCollection<KV<[]byte, string>>
-    kvs := beam.ParDo(s, wrapStringInKV, reshuffled)
-
-	// After wrapping your elements into a KV
-	kvType := beam.NewKVType(beam.NewBytesType(), beam.NewStringType())
-	kvCoder := beam.NewCoder(kvType)
-	beam.WithCoder(s, kvCoder, kvs) // Explicitly set the coder on the PCollection
-
-	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
-
-	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
-
-	ptest.RunAndValidate(t, p)
-}
-
 // func TestXLang_Prefix(t *testing.T) {
 // 	integration.CheckFilters(t)
 // 	checkFlags(t)
@@ -162,11 +134,39 @@ func TestXLang_Prefix(t *testing.T) {
 // 	// Add a Reshuffle to force a serialization boundary and prevent fusion.
 // 	reshuffled := beam.Reshuffle(s, strings)
 
-// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, reshuffled)
+//     // FIX: Wrap the simple PCollection<string> into a PCollection<KV<[]byte, string>>
+//     kvs := beam.ParDo(s, wrapStringInKV, reshuffled)
+
+// 	// After wrapping your elements into a KV
+// 	kvType := beam.NewKVType(beam.NewBytesType(), beam.NewStringType())
+// 	kvCoder := beam.NewCoder(kvType)
+// 	beam.WithCoder(s, kvCoder, kvs) // Explicitly set the coder on the PCollection
+
+// 	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, kvs)
+
 // 	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
 
 // 	ptest.RunAndValidate(t, p)
 // }
+
+func TestXLang_Prefix(t *testing.T) {
+	integration.CheckFilters(t)
+	checkFlags(t)
+
+	p := beam.NewPipeline()
+	s := p.Root()
+
+	// Using the cross-language transform
+	strings := beam.Create(s, "a", "b", "c")
+
+	// Add a Reshuffle to force a serialization boundary and prevent fusion.
+	reshuffled := beam.Reshuffle(s, strings)
+
+	prefixed := xlang.Prefix(s, "prefix_", expansionAddr, reshuffled)
+	passert.Equals(s, prefixed, "prefix_a", "prefix_b", "prefix_c")
+
+	ptest.RunAndValidate(t, p)
+}
 
 func TestXLang_CoGroupBy(t *testing.T) {
 	integration.CheckFilters(t)

@@ -20,7 +20,7 @@ package xlangx
 import (
 	"context"
 	"fmt"
-	"strings"
+	// "strings"
 	"time"
 
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core"
@@ -40,6 +40,62 @@ import (
 // an expansion service endpoint.
 const maxRetries = 5
 
+// Expand expands an ExternalTransform by calling out to the configured expansion service.
+func Expand(edge *graph.MultiEdge, ext *graph.ExternalTransform) error {
+    // 1) Marshal just this one edge into a mini‐pipeline.
+    p, err := graphx.Marshal([]*graph.MultiEdge{edge}, &graphx.Options{})
+    if err != nil {
+        return errors.Wrapf(err, "unable to generate proto representation of %v", ext)
+    }
+    comps := p.GetComponents()
+
+    // 2) Strip away any composites until the only transform left is our External.
+    transforms := comps.GetTransforms()
+    rootID := p.GetRootTransformIds()[0]
+    for transforms[rootID].GetUniqueName() != "External" {
+        delete(transforms, rootID)
+        p, err = pipelinex.Normalize(p)
+        if err != nil {
+            return err
+        }
+        transforms = p.GetComponents().GetTransforms()
+        rootID = p.GetRootTransformIds()[0]
+    }
+    extProto := transforms[rootID]
+
+    // 3) Scope it under its namespace, then remove it from the map so
+    //    expand() will invoke it via the ExpansionRequest.
+    addNamespace(extProto, comps, ext.Namespace)
+    delete(transforms, rootID)
+
+    // 4) Register any missing coders. In particular your input PCollection
+    //    “n3” had coder “c0” but wasn’t in comps.Coders, so Java was rejecting it.
+    for _, pc := range comps.GetPcollections() {
+        cid := pc.GetCoderId()
+        if _, found := comps.GetCoders()[cid]; !found {
+            comps.Coders[cid] = &pipepb.Coder{
+                Spec: &pipepb.FunctionSpec{
+                    Urn: "beam:coder:string_utf8:v1",
+                },
+            }
+        }
+    }
+
+    // 5) Fire off the expansion request.
+    res, err := expand(context.Background(), comps, extProto, edge, ext)
+    if err != nil {
+        return err
+    }
+
+    // 6) Save the expanded transform back into the ExternalTransform.
+    ext.Expanded = &graph.ExpandedTransform{
+        Components:   res.GetComponents(),
+        Transform:    res.GetTransform(),
+        Requirements: res.GetRequirements(),
+    }
+    return nil
+}
+
 // Expand expands an unexpanded graph.ExternalTransform as a
 // graph.ExpandedTransform and assigns it to the ExternalTransform's Expanded
 // field. This requires querying an expansion service based on the configuration
@@ -47,62 +103,62 @@ const maxRetries = 5
 //
 // For framework use only. Users should call beam.CrossLanguage to access foreign transforms
 // rather than calling this function directly.
-func Expand(edge *graph.MultiEdge, ext *graph.ExternalTransform) error {
-	// Build the ExpansionRequest
+// func Expand(edge *graph.MultiEdge, ext *graph.ExternalTransform) error {
+// 	// Build the ExpansionRequest
 
-	// Obtaining the components and transform proto representing this transform
-	p, err := graphx.Marshal([]*graph.MultiEdge{edge}, &graphx.Options{})
-	if err != nil {
-		return errors.Wrapf(err, "unable to generate proto representation of %v", ext)
-	}
+// 	// Obtaining the components and transform proto representing this transform
+// 	p, err := graphx.Marshal([]*graph.MultiEdge{edge}, &graphx.Options{})
+// 	if err != nil {
+// 		return errors.Wrapf(err, "unable to generate proto representation of %v", ext)
+// 	}
 
-	transforms := p.GetComponents().GetTransforms()
+// 	transforms := p.GetComponents().GetTransforms()
 
-	// Transforms consist of only External transform and composites. Composites
-	// should be removed from proto before submitting expansion request.
-	extTransformID := p.GetRootTransformIds()[0]
-	extTransform := transforms[extTransformID]
-	for extTransform.UniqueName != "External" {
-		delete(transforms, extTransformID)
-		p, err = pipelinex.Normalize(p) // Update root transform IDs.
-		if err != nil {
-			return err
-		}
-		transforms = p.GetComponents().GetTransforms()
-		extTransformID = p.GetRootTransformIds()[0]
-		extTransform = transforms[extTransformID]
-	}
+// 	// Transforms consist of only External transform and composites. Composites
+// 	// should be removed from proto before submitting expansion request.
+// 	extTransformID := p.GetRootTransformIds()[0]
+// 	extTransform := transforms[extTransformID]
+// 	for extTransform.UniqueName != "External" {
+// 		delete(transforms, extTransformID)
+// 		p, err = pipelinex.Normalize(p) // Update root transform IDs.
+// 		if err != nil {
+// 			return err
+// 		}
+// 		transforms = p.GetComponents().GetTransforms()
+// 		extTransformID = p.GetRootTransformIds()[0]
+// 		extTransform = transforms[extTransformID]
+// 	}
 
-	names := strings.Split(ext.Urn, ":")
-	// Python external transform needs the producer of input PCollection in expansion request.
-	if len(names) > 2 && names[2] == "python" {
-		graphx.AddFakeImpulses(p)
-	}
+// 	names := strings.Split(ext.Urn, ":")
+// 	// Python external transform needs the producer of input PCollection in expansion request.
+// 	if len(names) > 2 && names[2] == "python" {
+// 		graphx.AddFakeImpulses(p)
+// 	}
 
-	// Scoping the ExternalTransform with respect to it's unique namespace, thus
-	// avoiding future collisions
-	addNamespace(extTransform, p.GetComponents(), ext.Namespace)
-	delete(transforms, extTransformID)
+// 	// Scoping the ExternalTransform with respect to it's unique namespace, thus
+// 	// avoiding future collisions
+// 	addNamespace(extTransform, p.GetComponents(), ext.Namespace)
+// 	delete(transforms, extTransformID)
 
-	// Querying the expansion service
-	res, err := expand(context.Background(), p.GetComponents(), extTransform, edge, ext)
-	if err != nil {
-		return err
-	}
+// 	// Querying the expansion service
+// 	res, err := expand(context.Background(), p.GetComponents(), extTransform, edge, ext)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// Remove fake impulses added earlier.
-	if len(names) > 2 && names[2] == "python" {
-		graphx.RemoveFakeImpulses(res.GetComponents(), res.GetTransform())
-	}
+// 	// Remove fake impulses added earlier.
+// 	if len(names) > 2 && names[2] == "python" {
+// 		graphx.RemoveFakeImpulses(res.GetComponents(), res.GetTransform())
+// 	}
 
-	exp := &graph.ExpandedTransform{
-		Components:   res.GetComponents(),
-		Transform:    res.GetTransform(),
-		Requirements: res.GetRequirements(),
-	}
-	ext.Expanded = exp
-	return nil
-}
+// 	exp := &graph.ExpandedTransform{
+// 		Components:   res.GetComponents(),
+// 		Transform:    res.GetTransform(),
+// 		Requirements: res.GetRequirements(),
+// 	}
+// 	ext.Expanded = exp
+// 	return nil
+// }
 
 func expand(
 	ctx context.Context,

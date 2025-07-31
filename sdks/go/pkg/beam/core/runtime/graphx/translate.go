@@ -19,7 +19,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
+	// "strings"
 
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core"
 	"github.com/apache/beam/sdks/v2/go/pkg/beam/core/graph"
@@ -722,71 +722,180 @@ func (m *marshaller) addMultiEdge(edge NamedEdge) ([]string, error) {
 	return allPIds, nil
 }
 
+// expandCrossLanguage translates a cross-language transform.
+//
+// To ensure correct data serialization across language boundaries, especially on runners
+// like Dataflow, each input PCollection is first passed through a Reshuffle transform.
+// This guarantees the data is materialized with its full windowing context before being
+// sent to the external SDK. This function achieves this by creating a composite transform
+// that contains a Reshuffle primitive for the inputs, followed by the actual External transform.
 func (m *marshaller) expandCrossLanguage(namedEdge NamedEdge) (string, error) {
 	edge := namedEdge.Edge
-	id := edgeID(edge)
+	// The ID for the new composite transform that will contain everything.
+	compositeID := fmt.Sprintf("%v_xlang_composite", edgeID(edge))
 
-	inputs := make(map[string]string)
+	var subtransforms []string
 
-	for tag, n := range ExternalInputs(edge) {
-		if _, err := m.addNode(n); err != nil {
-			return "", errors.Wrapf(err, "failed to expand cross language transform for edge: %v", namedEdge)
+	// 1. Create a Reshuffle transform primitive.
+	// It will take the original inputs and output new, intermediate PCollections.
+	reshuffleID := fmt.Sprintf("%v_reshuffle", edgeID(edge))
+	reshuffleInputs := make(map[string]string)
+	reshuffleOutputs := make(map[string]string)
+	externalInputs := make(map[string]string) // Inputs for the *next* transform.
+
+	// Sort tags for deterministic graph construction.
+	var sortedInputTags []string
+	for tag := range edge.External.InputsMap {
+		sortedInputTags = append(sortedInputTags, tag)
+	}
+	sort.Strings(sortedInputTags)
+
+	inputNodes := ExternalInputs(edge)
+
+	for i, tag := range sortedInputTags {
+		inNode := inputNodes[tag]
+		inNodeID, err := m.addNode(inNode) // Add original input PCollection to the proto.
+		if err != nil {
+			return "", err
 		}
-		// Ignore tag if it is a dummy UnnamedInputTag
-		if tag == graph.UnnamedInputTag {
-			tag = fmt.Sprintf("i%v", edge.External.InputsMap[tag])
+
+		// The tag for a Reshuffle's inputs and outputs must match.
+		// We use the original tag from the external transform.
+		reshuffleInputs[tag] = inNodeID
+
+		// Create a new intermediate PCollection proto for the output of the Reshuffle.
+		// It must have the same coder and windowing strategy as the input.
+		intermediatePcolID := fmt.Sprintf("%v_reshuffled_%d", inNodeID, i)
+		cid, err := m.coders.Add(inNode.Coder)
+		if err != nil {
+			return "", err
 		}
-		inputs[tag] = nodeID(n)
+		wsid, err := m.addWindowingStrategy(inNode.WindowingStrategy())
+		if err != nil {
+			return "", err
+		}
+		m.pcollections[intermediatePcolID] = &pipepb.PCollection{
+			UniqueName:          intermediatePcolID,
+			CoderId:             cid,
+			IsBounded:           boolToBounded(inNode.Bounded()),
+			WindowingStrategyId: wsid,
+		}
+
+		reshuffleOutputs[tag] = intermediatePcolID
+		externalInputs[tag] = intermediatePcolID // The external transform's input is the reshuffle's output.
 	}
 
-	spec := &pipepb.FunctionSpec{
-		Urn:     edge.External.Urn,
-		Payload: edge.External.Payload,
+	m.transforms[reshuffleID] = &pipepb.PTransform{
+		UniqueName:    fmt.Sprintf("%s/Reshuffle", namedEdge.Name),
+		Spec:          &pipepb.FunctionSpec{Urn: URNReshuffle},
+		Inputs:        reshuffleInputs,
+		Outputs:       reshuffleOutputs,
+		EnvironmentId: m.addDefaultEnv(),
+	}
+	subtransforms = append(subtransforms, reshuffleID)
+
+	// 2. Create the External transform, connected to the Reshuffle's outputs.
+	externalTransformID := edgeID(edge)
+	externalOutputs := make(map[string]string)
+	for tag, out := range ExternalOutputs(edge) {
+		if _, err := m.addNode(out); err != nil {
+			return "", err
+		}
+		externalOutputs[tag] = nodeID(out)
+	}
+	m.transforms[externalTransformID] = &pipepb.PTransform{
+		UniqueName: namedEdge.Name,
+		Spec:       &pipepb.FunctionSpec{Urn: edge.External.Urn, Payload: edge.External.Payload},
+		Inputs:     externalInputs,
+		Outputs:    externalOutputs,
 	}
 
-	transform := &pipepb.PTransform{
-		UniqueName:    namedEdge.Name,
-		Spec:          spec,
-		Inputs:        inputs,
+	// Set the environment for the external transform if it was determined during expansion.
+	if edge.External.Expanded != nil {
+		m.needsExpansion = true
+		environment, err := ExpandedTransform(edge.External.Expanded)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to get environment from expanded transform")
+		}
+		m.transforms[externalTransformID].EnvironmentId = environment.EnvironmentId
+	}
+	subtransforms = append(subtransforms, externalTransformID)
+
+	// 3. Create the parent composite transform that wraps everything for a clean graph.
+	m.transforms[compositeID] = &pipepb.PTransform{
+		UniqueName:    fmt.Sprintf("%s_wrapper", namedEdge.Name),
+		Subtransforms: subtransforms,
 		EnvironmentId: m.addDefaultEnv(),
 	}
 
-	// Add the coders for output in the marshaller even if expanded is nil
-	// for output coder field in expansion request.
-	// We need this specifically for Python External Transforms.
-	names := strings.Split(spec.Urn, ":")
-	if len(names) > 2 && names[2] == "python" {
-		for _, out := range edge.Output {
-			id, err := m.coders.Add(out.To.Coder)
-			if err != nil {
-				return "", errors.Wrapf(err, "failed to add output coder to coder registry: %v", m.coders)
-			}
-			out.To.Coder.ID = id
-		}
-	}
-
-	if edge.External.Expanded != nil {
-		// Outputs need to temporarily match format of unnamed Go SDK Nodes.
-		// After the initial pipeline is constructed, these will be used to correctly
-		// map consumers of these outputs to the expanded transform's outputs.
-		outputs := make(map[string]string)
-		for i, out := range edge.Output {
-			if _, err := m.addNode(out.To); err != nil {
-				return "", errors.Wrapf(err, "failed to expand cross language transform for edge: %v", namedEdge)
-			}
-			outputs[fmt.Sprintf("i%v", i)] = nodeID(out.To)
-		}
-		transform.Outputs = outputs
-		environment, err := ExpandedTransform(edge.External.Expanded)
-		if err != nil {
-			return "", errors.Wrapf(err, "failed to expand cross language transform for edge: %v", namedEdge)
-		}
-		transform.EnvironmentId = environment.EnvironmentId
-	}
-
-	m.transforms[id] = transform
-	return id, nil
+	return compositeID, nil
 }
+
+// func (m *marshaller) expandCrossLanguage(namedEdge NamedEdge) (string, error) {
+// 	edge := namedEdge.Edge
+// 	id := edgeID(edge)
+
+// 	inputs := make(map[string]string)
+
+// 	for tag, n := range ExternalInputs(edge) {
+// 		if _, err := m.addNode(n); err != nil {
+// 			return "", errors.Wrapf(err, "failed to expand cross language transform for edge: %v", namedEdge)
+// 		}
+// 		// Ignore tag if it is a dummy UnnamedInputTag
+// 		if tag == graph.UnnamedInputTag {
+// 			tag = fmt.Sprintf("i%v", edge.External.InputsMap[tag])
+// 		}
+// 		inputs[tag] = nodeID(n)
+// 	}
+
+// 	spec := &pipepb.FunctionSpec{
+// 		Urn:     edge.External.Urn,
+// 		Payload: edge.External.Payload,
+// 	}
+
+// 	transform := &pipepb.PTransform{
+// 		UniqueName:    namedEdge.Name,
+// 		Spec:          spec,
+// 		Inputs:        inputs,
+// 		EnvironmentId: m.addDefaultEnv(),
+// 	}
+
+// 	// Add the coders for output in the marshaller even if expanded is nil
+// 	// for output coder field in expansion request.
+// 	// We need this specifically for Python External Transforms.
+// 	names := strings.Split(spec.Urn, ":")
+// 	if len(names) > 2 && names[2] == "python" {
+// 		for _, out := range edge.Output {
+// 			id, err := m.coders.Add(out.To.Coder)
+// 			if err != nil {
+// 				return "", errors.Wrapf(err, "failed to add output coder to coder registry: %v", m.coders)
+// 			}
+// 			out.To.Coder.ID = id
+// 		}
+// 	}
+
+// 	if edge.External.Expanded != nil {
+// 		// Outputs need to temporarily match format of unnamed Go SDK Nodes.
+// 		// After the initial pipeline is constructed, these will be used to correctly
+// 		// map consumers of these outputs to the expanded transform's outputs.
+// 		outputs := make(map[string]string)
+// 		for i, out := range edge.Output {
+// 			if _, err := m.addNode(out.To); err != nil {
+// 				return "", errors.Wrapf(err, "failed to expand cross language transform for edge: %v", namedEdge)
+// 			}
+// 			outputs[fmt.Sprintf("i%v", i)] = nodeID(out.To)
+// 		}
+// 		transform.Outputs = outputs
+// 		environment, err := ExpandedTransform(edge.External.Expanded)
+// 		if err != nil {
+// 			return "", errors.Wrapf(err, "failed to expand cross language transform for edge: %v", namedEdge)
+// 		}
+// 		transform.EnvironmentId = environment.EnvironmentId
+// 	}
+
+// 	m.transforms[id] = transform
+// 	return id, nil
+// }
 
 func (m *marshaller) expandCoGBK(edge NamedEdge) (string, error) {
 	// TODO(https://github.com/apache/beam/issues/18032): replace once CoGBK is a primitive. For now, we have to translate
