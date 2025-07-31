@@ -87,22 +87,23 @@ jobs:
         env:
           GO111MODULE: "on"
         run: |
-          # Start expansion service in background
+          # 1  Start the expansion service (background Gradle `run` task)
           ./gradlew :sdks:java:testing:expansion-service:run --args="8097" &
           EXP_PID=$!
-          # Give it a moment to open the port
-          sleep 10
+          sleep 10   # let it bind the port
 
-          # Run the single test
-          go test -v ./sdks/go/test/integration/xlang \
+          # 2  Run the single integration test from inside the Go module root
+          pushd sdks/go
+          go test -v ./test/integration/xlang \
             -run '^TestXLang_Prefix$' \
             -runner=dataflow \
             --project ${GCP_PROJECT} \
             --region  ${GCP_REGION} \
             --expansion_addr=localhost:8097 \
             --sdk_overrides '.*java.*,gcr.io/apache-beam-testing/beam_sdk/beam_java11_sdk:latest'
+          popd
 
-          # Ensure background service is terminated
+          # 3  Shut down the expansion service
           kill $EXP_PID || true
 
       # ───────── Upload test reports on failure ────────────────────────────────
