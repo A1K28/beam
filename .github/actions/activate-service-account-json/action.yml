@@ -1,27 +1,26 @@
-name: 'GCP Service Account Activator'
+name: "GCP Service Account Activator"
 description: >
   Sets up GCP credentials from a raw JSON service account key. Optionally
-  installs/activates the gcloud SDK and exports ADC. Cleans up the key file after use.
+  installs/configures the gcloud SDK and exports ADC. Cleans up the key file after use.
 inputs:
   project_id:
-    description: 'GCP project ID to configure'
+    description: "GCP project ID to configure"
     required: false
-    default: 'apache_beam_testing'
+    default: "apache-beam-testing"
   service_account_key:
-    description: 'Raw JSON service account key'
+    description: "Raw JSON service account key"
     required: true
   export_default_credentials:
-    description: 'Whether to export application default credentials (ADC) via setup-gcloud'
+    description: "Whether to export application default credentials (ADC) via setup-gcloud"
     required: false
-    default: 'true'
+    default: "true"
   install_sdk:
-    description: 'Whether to invoke setup-gcloud to install/configure the SDK; if false, only the key file is written and ADC environment variable set'
+    description: "Whether to invoke setup-gcloud to install/configure the SDK; if false, only the key file is written and ADC environment variable set"
     required: false
-    default: 'true'
+    default: "true"
 outputs:
   active_account:
-    description: 'The currently active gcloud account (for verification)'
-
+    description: "The currently active gcloud account (for verification)"
 runs:
   using: composite
   steps:
@@ -46,7 +45,6 @@ runs:
         printf '%s' "${{ inputs.service_account_key }}" > "$KEY_PATH"
         chmod 600 "$KEY_PATH"
         echo "GOOGLE_APPLICATION_CREDENTIALS=$KEY_PATH" >> "$GITHUB_ENV"
-      # always run so even if install_sdk is false we still get credentials
 
     - name: Verify active GCP identity
       shell: bash
@@ -55,22 +53,20 @@ runs:
         gcloud auth list || true
         echo "Configured account:"
         gcloud config get-value account || true
-        # Expose active account as output if available
         ACTIVE="$(gcloud config get-value account 2>/dev/null || echo '')"
         echo "active_account=$ACTIVE" >> "$GITHUB_OUTPUT"
         python - <<'PY'
-import os
 import google.auth
 try:
     creds, project = google.auth.default()
-    print("ADC credential class:", creds.__class__.__name__)
+    print("ADC credential class:", type(creds).__name__)
     if hasattr(creds, "service_account_email"):
-        print("SA email from creds:", creds.service_account_email)
+        print("Service account email:", creds.service_account_email)
 except Exception as e:
     print("Failed to inspect ADC:", e)
 PY
 
-    - name: Authenticate Docker (example, no-op if gcloud not present)
+    - name: Authenticate Docker (if SDK installed)
       if: ${{ inputs.install_sdk == 'true' }}
       shell: bash
       run: |
