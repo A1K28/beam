@@ -52,24 +52,24 @@ runs:
         echo "GOOGLE_APPLICATION_CREDENTIALS=$KEY_PATH" >> "$GITHUB_ENV"
 
     - name: Verify active GCP identity
-          shell: bash
-          run: |
-            echo "gcloud auth list (may be empty if SDK not configured):"
-            gcloud auth list || true
-            echo "Configured account:"
-            gcloud config get-value account || true
-            ACTIVE="$(gcloud config get-value account 2>/dev/null || echo '')"
-            echo "active_account=$ACTIVE" >> "$GITHUB_OUTPUT"
-            python - <<'PY'
-            import google.auth
-            try:
-                creds, project = google.auth.default()
-                print("ADC credential class:", type(creds).__name__)
-                if hasattr(creds, "service_account_email"):
-                    print("Service account email:", creds.service_account_email)
-            except Exception as e:
-                print("Failed to inspect ADC:", e)
-            PY
+      shell: bash
+      run: |
+        echo "gcloud auth list (may be empty if SDK not configured):"
+        gcloud auth list || true
+        echo "Configured account:"
+        gcloud config get-value account || true
+        ACTIVE="$(gcloud config get-value account 2>/dev/null || echo '')"
+        echo "active_account=$ACTIVE" >> "$GITHUB_OUTPUT"
+        python - <<'PY'
+        import google.auth
+        try:
+            creds, project = google.auth.default()
+            print("ADC credential class:", type(creds).__name__)
+            if hasattr(creds, "service_account_email"):
+                print("Service account email:", creds.service_account_email)
+        except Exception as e:
+            print("Failed to inspect ADC:", e)
+        PY
 
     - name: Authenticate Docker (if SDK installed)
       if: ${{ inputs.install_sdk == 'true' }}
