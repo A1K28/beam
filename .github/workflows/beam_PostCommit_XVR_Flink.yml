@@ -72,29 +72,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
 
-      - name: Wait for Docker and sanity check
-        run: |
-          for i in {1..10}; do
-            if docker info >/dev/null 2>&1; then
-              echo "Docker is up"
-              break
-            else
-              echo "Docker not ready yet, retrying ($i/10)..."
-              sleep 3
-            fi
-          done
-          echo "=== docker version ==="
-          docker version || true
-          echo "=== docker info ==="
-          docker info || true
-          echo "=== docker ps -a ==="
-          docker ps -a || true
-          echo "=== Disk and memory diagnostics ==="
-          df -h || true
-          free -m || true
-          echo "=== Docker socket permissions ==="
-          ls -l /var/run/docker.sock || true
-
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
@@ -102,19 +79,8 @@ jobs:
           java-version: default
           python-version: ${{ matrix.python_version }}
 
-      - name: Setup docker buildx builder
-        run: |
-          # ensure buildx plugin is present and create a container-backed builder that supports --load
-          echo "Checking buildx availability:"
-          docker buildx version || true
-
-          # delete existing builder if it's in a bad state, then create fresh with docker-container driver
-          docker buildx rm beam-builder || true
-          docker buildx create --name beam-builder --driver docker-container --use
-          docker buildx inspect beam-builder --bootstrap
-
-          echo "Active builder:"
-          docker buildx ls
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
 
       - name: run PostCommit XVR Flink script with retries and verbose docker-licensing steps
         env:
