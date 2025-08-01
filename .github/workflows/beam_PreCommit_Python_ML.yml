@@ -107,6 +107,8 @@ jobs:
           service_account_key: ${{ secrets.GCP_SA_KEY }}
 
       - name: Bootstrap deterministic Python deps
+        # This conditional ensures the step only runs for Python versions 3.9, 3.10, and 3.11.
+        if: matrix.python_version < '3.12'
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip setuptools wheel
