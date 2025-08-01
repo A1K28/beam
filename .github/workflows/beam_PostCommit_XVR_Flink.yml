@@ -104,12 +104,17 @@ jobs:
 
       - name: Setup docker buildx builder
         run: |
-          # create and switch to a buildx builder that supports --load
-          docker buildx create --name beam-builder --use || true
-          docker buildx inspect --bootstrap
+          # ensure buildx plugin is present and create a container-backed builder that supports --load
+          echo "Checking buildx availability:"
+          docker buildx version || true
+
+          # delete existing builder if it's in a bad state, then create fresh with docker-container driver
+          docker buildx rm beam-builder || true
+          docker buildx create --name beam-builder --driver docker-container --use
+          docker buildx inspect beam-builder --bootstrap
+
           echo "Active builder:"
           docker buildx ls
-
 
       - name: run PostCommit XVR Flink script with retries and verbose docker-licensing steps
         env:
