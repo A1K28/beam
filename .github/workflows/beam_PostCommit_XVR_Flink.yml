@@ -102,6 +102,15 @@ jobs:
           java-version: default
           python-version: ${{ matrix.python_version }}
 
+      - name: Setup docker buildx builder
+        run: |
+          # create and switch to a buildx builder that supports --load
+          docker buildx create --name beam-builder --use || true
+          docker buildx inspect --bootstrap
+          echo "Active builder:"
+          docker buildx ls
+
+
       - name: run PostCommit XVR Flink script with retries and verbose docker-licensing steps
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
