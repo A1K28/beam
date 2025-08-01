@@ -72,6 +72,24 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }} ${{ matrix.python_version }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
+      - name: Wait for Docker and sanity check
+        run: |
+          # Retry until docker responds or timeout
+          for i in {1..10}; do
+            if docker info >/dev/null 2>&1; then
+              echo "Docker is up"
+              break
+            else
+              echo "Docker not ready yet, retrying ($i/10)..."
+              sleep 3
+            fi
+          done
+          echo "=== docker version ==="
+          docker version || true
+          echo "=== docker info ==="
+          docker info || true
+          echo "=== docker ps -a ==="
+          docker ps -a || true
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
