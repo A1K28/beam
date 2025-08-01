@@ -1,7 +1,8 @@
 name: "GCP Service Account Activator"
-description: >
+description: |
   Sets up GCP credentials from a raw JSON service account key. Optionally
   installs/configures the gcloud SDK and exports ADC. Cleans up the key file after use.
+
 inputs:
   project_id:
     description: "GCP project ID to configure"
@@ -15,14 +16,18 @@ inputs:
     required: false
     default: "true"
   install_sdk:
-    description: "Whether to invoke setup-gcloud to install/configure the SDK; if false, only the key file is written and ADC environment variable set"
+    description: |
+      Whether to invoke setup-gcloud to install/configure the SDK; if false,
+      only the key file is written and ADC environment variable set.
     required: false
     default: "true"
+
 outputs:
   active_account:
     description: "The currently active gcloud account (for verification)"
+
 runs:
-  using: composite
+  using: "composite"
   steps:
     - name: Ensure gcloud config dir is writable
       shell: bash
