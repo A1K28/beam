@@ -106,34 +106,6 @@ jobs:
         with:
           service_account_key: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Bootstrap deterministic Python deps
-        # This conditional ensures the step only runs for Python versions 3.9, 3.10, and 3.11.
-        if: matrix.python_version < '3.12'
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip setuptools wheel
-          # Clear any leftover cache that might cause ABI mismatch
-          pip cache purge || true
-          # Install numpy first with version choices per Python
-          if [[ "${{ matrix.python_version }}" == "3.11" ]]; then
-            # datatable pins numpy==1.21.3 which is incompatible with 3.11, so skip installing datatable.
-            pip install "numpy>=1.24,<2" 
-          else
-            # Use a stable numpy/pandas pair for 3.9/3.10 (adjust if your known-good run had different)
-            pip install "numpy==1.23.5"
-          fi
-          # Force reinstall pandas against the installed numpy
-          pip install --no-cache-dir --force-reinstall "pandas<2.3,>=1.4.3"
-          # For non-3.11, allow datatable if it’s needed; on 3.11 we skip it to avoid impossible numpy constraint.
-          if [[ "${{ matrix.python_version }}" == "3.9" || "${{ matrix.python_version }}" == "3.10" ]]; then
-            pip install "datatable==1.1.0" || echo "datatable install failed, letting downstream resolution handle it"
-          fi
-          # Snapshot key versions for visibility
-          echo "=== version snapshot ==="
-          python -c "import numpy; print('numpy', numpy.__version__)"
-          python -c "import pandas; print('pandas', pandas.__version__)"
-          python -c "import sys; print('python', sys.version.split()[0])"
-
       - name: Run pythonPreCommit
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
