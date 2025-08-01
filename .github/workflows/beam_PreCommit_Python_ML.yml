@@ -128,7 +128,7 @@ jobs:
 
       - name: Activate GCP service account (with SDK)
         id: gcp_setup
-        uses: ./.github/actions/gcp-sa-activate
+        uses: ./.github/actions/activate-service-account-json
         with:
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           install_sdk: 'true'
