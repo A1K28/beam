@@ -86,6 +86,7 @@ jobs:
         with:
           gradle-command: :runners:spark:3:job-server:validatesCrossLanguageRunner
           arguments: |
+            --info \
             -PpythonVersion=${{ matrix.python_version }} \
             -PskipNonPythonTask=${{ (matrix.python_version == '3.9' && true) || false }} \
       - name: Archive JUnit Test Results

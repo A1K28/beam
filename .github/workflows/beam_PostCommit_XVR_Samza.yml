@@ -90,6 +90,7 @@ jobs:
         with:
           gradle-command: :runners:samza:job-server:validatesCrossLanguageRunner
           arguments: |
+            --info \
             -PpythonVersion=${{ matrix.python_version }} \
             -PtestJavaVersion=8 \
             -Pjava8Home=$JAVA_HOME_8_X64 \
