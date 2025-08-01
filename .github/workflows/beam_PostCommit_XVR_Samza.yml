@@ -81,6 +81,8 @@ jobs:
             11
           python-version: |
             ${{ matrix.python_version }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
       - name: run PostCommit XVR Samza script
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
