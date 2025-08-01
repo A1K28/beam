@@ -28,7 +28,6 @@ on:
     - cron: '45 2/6 * * *'
   workflow_dispatch:
 
-#Setting explicit permissions for the action to avoid the default permissions which are `write-all` in case of pull_request_target event
 permissions:
   actions: write
   pull-requests: write
@@ -44,9 +43,8 @@ permissions:
   security-events: read
   statuses: read
 
-# This allows a subsequently queued workflow run to interrupt previous runs
 concurrency:
-  group: '${{ github.workflow }} @ ${{ github.event.issue.number || github.event.pull_request.head.label || github.sha || github.head_ref || github.ref }}-${{ github.event.schedule || github.event.comment.id || github.event.sender.login }}'
+  group: '${{ github.workflow }} @ ${{ github.event.issue.number || github.event.pull_request.head.label || github.sha || github.head_ref || github.ref }}-${{ github.event.schedule || github.event.comment.id || github.event.pull_request.user.login }}'
   cancel-in-progress: true
 
 env:
@@ -81,25 +79,61 @@ jobs:
       startsWith(github.event.comment.body, 'Run Python_ML PreCommit')
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup repository
         uses: ./.github/actions/setup-action
         with:
           comment_phrase: ${{ matrix.job_phrase }} ${{ matrix.python_version }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
+
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
           java-version: default
           python-version: ${{ matrix.python_version }}
+
       - name: Set PY_VER_CLEAN
         id: set_py_ver_clean
         run: |
           PY_VER=${{ matrix.python_version }}
           PY_VER_CLEAN=${PY_VER//.}
           echo "py_ver_clean=$PY_VER_CLEAN" >> $GITHUB_OUTPUT
-      - name: Activate Service Account
-        uses: ./.github/actions/activate-service-account
+
+      - name: Bootstrap deterministic Python deps
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip setuptools wheel
+          # Clear any leftover cache that might cause ABI mismatch
+          pip cache purge || true
+          # Install numpy first with version choices per Python
+          if [[ "${{ matrix.python_version }}" == "3.11" ]]; then
+            # datatable pins numpy==1.21.3 which is incompatible with 3.11, so skip installing datatable.
+            pip install "numpy>=1.24,<2" 
+          else
+            # Use a stable numpy/pandas pair for 3.9/3.10 (adjust if your known-good run had different)
+            pip install "numpy==1.23.5"
+          fi
+          # Force reinstall pandas against the installed numpy
+          pip install --no-cache-dir --force-reinstall "pandas<2.3,>=1.4.3"
+          # For non-3.11, allow datatable if it’s needed; on 3.11 we skip it to avoid impossible numpy constraint.
+          if [[ "${{ matrix.python_version }}" != "3.11" ]]; then
+            pip install "datatable==1.1.0" || echo "datatable install failed, continuing to let tox resolution handle it"
+          fi
+          # Snapshot key versions for visibility
+          echo "=== version snapshot ==="
+          python -c "import numpy; print('numpy', numpy.__version__)"
+          python -c "import pandas; print('pandas', pandas.__version__)"
+          python -c "import sys; print('python', sys.version.split()[0])"
+
+      - name: Activate GCP service account (with SDK)
+        id: gcp_setup
+        uses: ./.github/actions/gcp-sa-activate
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          install_sdk: 'true'
+          export_default_credentials: 'true'
+
       - name: Run pythonPreCommit
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
@@ -111,12 +145,14 @@ jobs:
                 'apache_beam/ml/ -m require_docker_in_docker'
             }}" \
             -PpythonVersion=${{ matrix.python_version }}
+
       - name: Archive Python Test Results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Python ${{ matrix.python_version }} Test Results
           path: '**/pytest*.xml'
+
       - name: Publish Python Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()

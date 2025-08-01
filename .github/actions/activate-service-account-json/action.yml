@@ -1,0 +1,87 @@
+name: 'GCP Service Account Activator'
+description: >
+  Sets up GCP credentials from a raw JSON service account key. Optionally
+  installs/activates the gcloud SDK and exports ADC. Cleans up the key file after use.
+inputs:
+  project_id:
+    description: 'GCP project ID to configure'
+    required: false
+    default: 'apache_beam_testing'
+  service_account_key:
+    description: 'Raw JSON service account key'
+    required: true
+  export_default_credentials:
+    description: 'Whether to export application default credentials (ADC) via setup-gcloud'
+    required: false
+    default: 'true'
+  install_sdk:
+    description: 'Whether to invoke setup-gcloud to install/configure the SDK; if false, only the key file is written and ADC environment variable set'
+    required: false
+    default: 'true'
+outputs:
+  active_account:
+    description: 'The currently active gcloud account (for verification)'
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure gcloud config dir is writable
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/gcloud"
+        echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud" >> "$GITHUB_ENV"
+
+    - name: Conditionally install / configure gcloud SDK and ADC
+      if: ${{ inputs.install_sdk == 'true' }}
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ inputs.project_id }}
+        service_account_key: ${{ inputs.service_account_key }}
+        export_default_credentials: ${{ inputs.export_default_credentials }}
+
+    - name: Write service account key file and set GOOGLE_APPLICATION_CREDENTIALS
+      shell: bash
+      run: |
+        KEY_PATH="$HOME/sa.json"
+        printf '%s' "${{ inputs.service_account_key }}" > "$KEY_PATH"
+        chmod 600 "$KEY_PATH"
+        echo "GOOGLE_APPLICATION_CREDENTIALS=$KEY_PATH" >> "$GITHUB_ENV"
+      # always run so even if install_sdk is false we still get credentials
+
+    - name: Verify active GCP identity
+      shell: bash
+      run: |
+        echo "gcloud auth list (may be empty if SDK not configured):"
+        gcloud auth list || true
+        echo "Configured account:"
+        gcloud config get-value account || true
+        # Expose active account as output if available
+        ACTIVE="$(gcloud config get-value account 2>/dev/null || echo '')"
+        echo "active_account=$ACTIVE" >> "$GITHUB_OUTPUT"
+        python - <<'PY'
+import os
+import google.auth
+try:
+    creds, project = google.auth.default()
+    print("ADC credential class:", creds.__class__.__name__)
+    if hasattr(creds, "service_account_email"):
+        print("SA email from creds:", creds.service_account_email)
+except Exception as e:
+    print("Failed to inspect ADC:", e)
+PY
+
+    - name: Authenticate Docker (example, no-op if gcloud not present)
+      if: ${{ inputs.install_sdk == 'true' }}
+      shell: bash
+      run: |
+        gcloud auth configure-docker us.gcr.io --quiet || echo "docker auth skipped"
+
+    - name: Cleanup service account key file
+      if: always()
+      shell: bash
+      run: |
+        KEY_PATH="$HOME/sa.json"
+        if [ -f "$KEY_PATH" ]; then
+          shred -u "$KEY_PATH" || rm -f "$KEY_PATH"
+          echo "Service account key file cleaned up"
+        fi
