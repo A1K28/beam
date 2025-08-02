@@ -33,6 +33,7 @@ runs:
   using: "composite"
   steps:
     - name: Check for Specific Cache Variables
+      shell: bash
       run: |
         echo "Cache URL is: $GRADLE_BUILD_CACHE_URL"
         echo "Cache Username is: $GRADLE_BUILD_CACHE_USERNAME"
