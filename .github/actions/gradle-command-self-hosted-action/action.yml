@@ -49,11 +49,9 @@ runs:
         ./gradlew ${{ inputs.gradle-command }} --max-workers=${{ inputs.max-workers }} --continue \
          -Dorg.gradle.jvmargs=-Xms2g -Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.vfs.watch=false -Pdocker-pull-licenses \
          --info \
-         --scan \
-         -Dde.grdev.build.cache.remote.enabled=false \
          -Dorg.gradle.caching.remote.url=$GRADLE_CACHE_URL \
          -Dorg.gradle.caching.remote.username=$GRADLE_CACHE_USERNAME \
          -Dorg.gradle.caching.remote.password=$GRADLE_CACHE_PASSWORD \
+         -Dde.grdev.build.cache.remote.enabled=false \
          -Dde.grdev.build.cache.remote.push=true \
-         -Dorg.gradle.caching.remote.push=true \
          ${{ inputs.arguments }}
