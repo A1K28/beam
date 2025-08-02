@@ -55,7 +55,7 @@ jobs:
       github.event_name == 'pull_request_target' ||
       (github.event_name == 'schedule' && github.repository == 'apache/beam') ||
       github.event.comment.body == 'Run Jpms Dataflow Java 11 PostCommit'
-    runs-on: [self-hosted, ubuntu-20.04, main]
+    runs-on: [main]
     timeout-minutes: 240
     name: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
     strategy:
@@ -79,6 +79,15 @@ jobs:
         with:
           gradle-command: :sdks:java:testing:jpms-tests:dataflowRunnerIntegrationTest
           arguments: -Dorg.gradle.java.home=$JAVA_HOME_11_X64
+          arguments: |
+            --info \
+            --scan \
+            -Dorg.gradle.java.home=$JAVA_HOME_11_X64 \
+            -Dde.grdev.build.cache.remote.enabled=false \
+            -Dorg.gradle.caching.remote.url=${{ secrets.GRADLE_CACHE_URL }} \
+            -Dorg.gradle.caching.remote.username=${{ secrets.GRADLE_CACHE_USERNAME }} \
+            -Dorg.gradle.caching.remote.password=${{ secrets.GRADLE_CACHE_PASSWORD }} \
+            -Dorg.gradle.caching.remote.push=true \
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
         if: ${{ !success() }}
