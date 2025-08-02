@@ -89,6 +89,14 @@ jobs:
           else
             echo "Username is NOT set."
           fi
+      - name: Debug Python version inside job
+        run: |
+          echo "Matrix python version is: ${{ matrix.python_version }}"
+          echo "which python3.12:"; which python3.12 || echo "python3.12 not found"
+          echo "which python3.9:"; which python3.9 || echo "python3.9 not found"
+          python3.12 --version || echo "python3.12 failed"
+          python3.9 --version || echo "python3.9 failed"
+          echo "Default python:"; which python || python --version || true
       - name: run PostCommit XVR Flink script
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
