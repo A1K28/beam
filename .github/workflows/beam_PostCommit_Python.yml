@@ -109,7 +109,6 @@ jobs:
           gradle-command: :python${{steps.set_py_ver_clean.outputs.py_ver_clean}}PostCommit
           arguments: |
             -Pjava21Home=$JAVA_HOME_21_X64 \
-            -PuseWheelDistribution \
             -Pposargs="${{
               contains(matrix.os, 'self-hosted') &&
                 '-m (not require_docker_in_docker)' ||

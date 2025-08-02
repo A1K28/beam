@@ -52,15 +52,16 @@ buildCache {
   local {
     isEnabled = true
   }
-  remote<HttpBuildCache> {
-    url = uri("https://beam-cache.apache.org/cache/")
+  remote(HttpBuildCache::class) {
+    url = uri("https://gradle-cache.aleks-self-hosted-domain.net/cache")
     isAllowUntrustedServer = false
     credentials {
       username = System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME")
       password = System.getenv("GRADLE_ENTERPRISE_CACHE_PASSWORD")
     }
+    isAllowInsecureProtocol = true
     isEnabled = !System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME").isNullOrBlank()
-    isPush = isCi && !System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME").isNullOrBlank()
+    isPush = true
   }
 }
 
