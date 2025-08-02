@@ -78,15 +78,7 @@ jobs:
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :sdks:java:testing:jpms-tests:dataflowRunnerIntegrationTest
-          arguments: |
-            --info \
-            --scan \
-            -Dorg.gradle.java.home=$JAVA_HOME_11_X64 \
-            -Dde.grdev.build.cache.remote.enabled=false \
-            -Dorg.gradle.caching.remote.url=${{ secrets.GRADLE_CACHE_URL }} \
-            -Dorg.gradle.caching.remote.username=${{ secrets.GRADLE_CACHE_USERNAME }} \
-            -Dorg.gradle.caching.remote.password=${{ secrets.GRADLE_CACHE_PASSWORD }} \
-            -Dorg.gradle.caching.remote.push=true \
+          arguments: -Dorg.gradle.java.home=$JAVA_HOME_11_X64
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
         if: ${{ !success() }}
