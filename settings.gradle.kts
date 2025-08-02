@@ -52,15 +52,16 @@ buildCache {
   local {
     isEnabled = true
   }
-  remote<HttpBuildCache> {
-    url = uri("https://beam-cache.apache.org/cache/")
+  // This new block forces the use of your GKE cache
+  remote(HttpBuildCache::class) {
+    url = uri(System.getenv("GRADLE_BUILD_CACHE_URL") ?: "http://localhost:5071")
     isAllowUntrustedServer = false
     credentials {
-      username = System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME")
-      password = System.getenv("GRADLE_ENTERPRISE_CACHE_PASSWORD")
+      username = System.getenv("GRADLE_CACHE_USERNAME")
+      password = System.getenv("GRADLE_CACHE_PASSWORD")
     }
-    isEnabled = !System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME").isNullOrBlank()
-    isPush = isCi && !System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME").isNullOrBlank()
+    isEnabled = !System.getenv("GRADLE_CACHE_URL").isNullOrBlank()
+    isPush = true
   }
 }
 

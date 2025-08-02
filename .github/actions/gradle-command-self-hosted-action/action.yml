@@ -32,11 +32,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Check for Specific Cache Variables
-      shell: bash
-      run: |
-        echo "Cache URL is: $GRADLE_CACHE_URL"
-        echo "Cache Username is: $GRADLE_CACHE_USERNAME"
     - name: Run Gradle Command
       shell: bash
       run: |
@@ -46,12 +41,6 @@ runs:
         if [ -f ~/.m2/settings.xml ]; then
           rm ~/.m2/settings.xml
         fi
-        ./gradlew ${{ inputs.gradle-command }} --max-workers=${{ inputs.max-workers }} --continue \
+        ./gradlew ${{ inputs.gradle-command }} --max-workers=${{ inputs.max-workers }} --continue --stacktrace \
          -Dorg.gradle.jvmargs=-Xms2g -Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.vfs.watch=false -Pdocker-pull-licenses \
-         --info \
-         -Dorg.gradle.caching.remote.url=$GRADLE_CACHE_URL \
-         -Dorg.gradle.caching.remote.username=$GRADLE_CACHE_USERNAME \
-         -Dorg.gradle.caching.remote.password=$GRADLE_CACHE_PASSWORD \
-         -Dde.grdev.build.cache.remote.enabled=false \
-         -Dde.grdev.build.cache.remote.push=true \
-         ${{ inputs.arguments }}
+        ${{ inputs.arguments }}
