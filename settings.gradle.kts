@@ -60,6 +60,7 @@ buildCache {
       username = System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME")
       password = System.getenv("GRADLE_ENTERPRISE_CACHE_PASSWORD")
     }
+    isAllowUntrustedServer = true 
     isAllowInsecureProtocol = true
     isEnabled = !System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME").isNullOrBlank()
     isPush = true
