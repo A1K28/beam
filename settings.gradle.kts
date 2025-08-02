@@ -54,7 +54,7 @@ buildCache {
   }
   // This new block forces the use of your GKE cache
   remote(HttpBuildCache::class) {
-    url = "https://gradle-cache.34.122.186.133.nip.io/cache"
+    url = uri("https://gradle-cache.34.122.186.133.nip.io/cache")
     isAllowUntrustedServer = false
     credentials {
       username = System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME")
