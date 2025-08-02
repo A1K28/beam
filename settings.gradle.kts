@@ -54,13 +54,14 @@ buildCache {
   }
   // This new block forces the use of your GKE cache
   remote(HttpBuildCache::class) {
-    url = uri(System.getenv("GRADLE_BUILD_CACHE_URL") ?: "http://localhost:5071")
+    url = "https://gradle-cache.34.122.186.133.nip.io/cache"
     isAllowUntrustedServer = false
     credentials {
-      username = System.getenv("GRADLE_CACHE_USERNAME")
-      password = System.getenv("GRADLE_CACHE_PASSWORD")
+      username = System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME")
+      password = System.getenv("GRADLE_ENTERPRISE_CACHE_PASSWORD")
     }
-    isEnabled = !System.getenv("GRADLE_CACHE_URL").isNullOrBlank()
+    isAllowInsecureProtocol = true
+    isEnabled = !System.getenv("GRADLE_ENTERPRISE_CACHE_USERNAME").isNullOrBlank()
     isPush = true
   }
 }
