@@ -44,9 +44,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GRADLE_BUILD_CACHE_URL: ${{ secrets.GRADLE_CACHE_URL }}
-  GRADLE_BUILD_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
-  GRADLE_BUILD_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
   FlinkVersion: 1.19
 
 jobs:
@@ -83,6 +80,9 @@ jobs:
       - name: run PostCommit XVR Flink script
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
+          GRADLE_BUILD_CACHE_URL: ${{ secrets.GRADLE_CACHE_URL }}
+          GRADLE_BUILD_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+          GRADLE_BUILD_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :runners:flink:${{ env.FlinkVersion }}:job-server:validatesCrossLanguageRunner
