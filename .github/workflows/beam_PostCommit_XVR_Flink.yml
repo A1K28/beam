@@ -77,6 +77,18 @@ jobs:
           python-version: ${{ matrix.python_version }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
+      - name: Debug Environment Variables
+        env:
+          GRADLE_BUILD_CACHE_URL: ${{ secrets.GRADLE_CACHE_URL }}
+          GRADLE_BUILD_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+        shell: bash
+        run: |
+          echo "URL: ${{ env.GRADLE_BUILD_CACHE_URL }}"
+          if [ -n "${{ env.GRADLE_BUILD_CACHE_USERNAME }}" ]; then
+            echo "Username is set."
+          else
+            echo "Username is NOT set."
+          fi
       - name: run PostCommit XVR Flink script
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
@@ -87,9 +99,11 @@ jobs:
         with:
           gradle-command: :runners:flink:${{ env.FlinkVersion }}:job-server:validatesCrossLanguageRunner
           arguments: |
-            --info \
-            -PpythonVersion=${{ matrix.python_version }} \
-            -PskipNonPythonTask=${{ (matrix.python_version == '3.9' && true) || false }} \
+            --info
+            -PpythonVersion=${{ matrix.python_version }}
+            -PskipNonPythonTask=${{ (matrix.python_version == '3.9' && true) || false }}
+            # Add this line to disable the default Apache cache
+            -Dde.grdev.build.cache.remote.enabled=false
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
         if: ${{ !success() }}
