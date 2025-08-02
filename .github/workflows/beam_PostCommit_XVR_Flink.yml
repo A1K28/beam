@@ -107,7 +107,6 @@ jobs:
         with:
           gradle-command: :runners:flink:${{ env.FlinkVersion }}:job-server:validatesCrossLanguageRunner
           arguments: |
-            --info
             -PpythonVersion=${{ matrix.python_version }}
             -PskipNonPythonTask=${{ (matrix.python_version == '3.9' && true) || false }}
             # Add this line to disable the default Apache cache
