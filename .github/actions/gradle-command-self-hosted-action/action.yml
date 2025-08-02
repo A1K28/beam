@@ -32,6 +32,10 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Check for Specific Cache Variables
+      run: |
+        echo "Cache URL is: $GRADLE_BUILD_CACHE_URL"
+        echo "Cache Username is: $GRADLE_BUILD_CACHE_USERNAME"
     - name: Run Gradle Command
       shell: bash
       run: |
@@ -43,12 +47,12 @@ runs:
         fi
         ./gradlew ${{ inputs.gradle-command }} --max-workers=${{ inputs.max-workers }} --continue \
          -Dorg.gradle.jvmargs=-Xms2g -Dorg.gradle.jvmargs=-Xmx6g -Dorg.gradle.vfs.watch=false -Pdocker-pull-licenses \
-         --info \
-         --scan \
-         -Dde.grdev.build.cache.remote.enabled=false \
-         -Dorg.gradle.caching.remote.url=${{ secrets.GRADLE_CACHE_URL }} \
-         -Dorg.gradle.caching.remote.username=${{ secrets.GRADLE_CACHE_USERNAME }} \
-         -Dorg.gradle.caching.remote.password=${{ secrets.GRADLE_CACHE_PASSWORD }} \
-         -Dde.grdev.build.cache.remote.push=true \
-         -Dorg.gradle.caching.remote.push=true \
+         # --info \
+         # --scan \
+         # -Dde.grdev.build.cache.remote.enabled=false \
+         # -Dorg.gradle.caching.remote.url=${{ secrets.GRADLE_CACHE_URL }} \
+         # -Dorg.gradle.caching.remote.username=${{ secrets.GRADLE_CACHE_USERNAME }} \
+         # -Dorg.gradle.caching.remote.password=${{ secrets.GRADLE_CACHE_PASSWORD }} \
+         # -Dde.grdev.build.cache.remote.push=true \
+         # -Dorg.gradle.caching.remote.push=true \
          ${{ inputs.arguments }}
