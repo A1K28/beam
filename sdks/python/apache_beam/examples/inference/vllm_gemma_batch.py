@@ -1,16 +1,18 @@
+#  Licensed to the Apache Software Foundation (ASF) ...
 """
 Batch pipeline: Gemma-2B-it via vLLM → BigQuery.
 
-• Launch from ANY machine (CPU or GPU).  
-• Dataflow workers get GPUs via --worker_accelerator.  
-• vLLM is imported only on the worker, never on the client.
+• Launch from any CPU machine; vLLM is imported only inside Dataflow workers.
+• Requires Dataflow flags:
+    --sdk_container_image=...python310-gpu
+    --worker_accelerator=type:nvidia-tesla-t4,count:1,install-nvidia-driver=true
 """
 
 from __future__ import annotations
 
 import argparse
-import logging
 import importlib
+import logging
 from collections.abc import Iterable
 
 import apache_beam as beam
@@ -25,7 +27,9 @@ from apache_beam.options.pipeline_options import (
     StandardOptions,
 )
 
-
+# --------------------------------------------------------------------------- #
+# 1. Post-processing DoFn
+# --------------------------------------------------------------------------- #
 class GemmaPostProcessor(beam.DoFn):
     def process(
         self, element: tuple[str, PredictionResult]
@@ -40,17 +44,18 @@ class GemmaPostProcessor(beam.DoFn):
         }
 
 
+# --------------------------------------------------------------------------- #
+# 2. Lazy vLLM handler (imports vLLM only on the worker)
+# --------------------------------------------------------------------------- #
 class LazyVLLMCompletionsHandler(ModelHandler):
-    """Wraps Beam's VLLMCompletionsModelHandler but imports vLLM only
-    inside `load_model`, i.e. on the Dataflow worker."""
     def __init__(self, model_name: str, vllm_server_kwargs: dict | None = None):
         self._model_name = model_name
         self._vllm_kwargs = vllm_server_kwargs or {}
-        self._delegate = None            # will hold actual handler
-        self._model = None               # cached engine handle
+        self._delegate = None  # type: ModelHandler
+        self._model = None
 
-    # ModelHandler interface
-    def load_model(self):
+    # -- internal ---------------------------------------------------------- #
+    def _ensure_delegate(self):
         if self._delegate is None:
             vllm_mod = importlib.import_module(
                 "apache_beam.ml.inference.vllm_inference"
@@ -62,22 +67,30 @@ class LazyVLLMCompletionsHandler(ModelHandler):
                 model_name=self._model_name,
                 vllm_server_kwargs=self._vllm_kwargs,
             )
+
+    # -- ModelHandler API -------------------------------------------------- #
+    def load_model(self):
+        self._ensure_delegate()
         if self._model is None:
             self._model = self._delegate.load_model()
         return self._model
 
     def run_inference(self, batch, model, inference_args=None):
-        # Re-use the delegate's implementation
+        self._ensure_delegate()
         return self._delegate.run_inference(batch, model, inference_args)
 
-    # simply forward to the delegate
     def get_num_bytes(self, batch) -> int:
+        self._ensure_delegate()
         return self._delegate.get_num_bytes(batch)
 
     def batch_elements_kwargs(self):
+        self._ensure_delegate()
         return self._delegate.batch_elements_kwargs()
 
 
+# --------------------------------------------------------------------------- #
+# 3. CLI parsing
+# --------------------------------------------------------------------------- #
 def _parse(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -90,9 +103,9 @@ def _parse(argv=None):
     )
     p.add_argument(
         "--model_name", default="google/gemma-2b-it",
-        help="HF model checkpoint",
+        help="HuggingFace checkpoint or local path",
     )
-    # Extra perf-test flags (accepted but unused)
+    # Perf-test extras (accepted but unused here)
     p.add_argument("--publish_to_big_query", default=False)
     p.add_argument("--metrics_dataset")
     p.add_argument("--metrics_table")
@@ -101,6 +114,9 @@ def _parse(argv=None):
     return p.parse_known_args(argv)
 
 
+# --------------------------------------------------------------------------- #
+# 4. Pipeline
+# --------------------------------------------------------------------------- #
 def run(argv=None, save_main_session=True, test_pipeline=None):
     opts, pipeline_args = _parse(argv)
 
@@ -118,10 +134,10 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
         (
             p
-            | "ReadPrompts" >> beam.io.ReadFromText(opts.input)
-            | "StripBlank"  >> beam.Filter(lambda ln: ln.strip())
+            | "ReadPrompts"  >> beam.io.ReadFromText(opts.input)
+            | "StripBlank"   >> beam.Filter(lambda ln: ln.strip())
             | "RunInference" >> RunInference(handler)
-            | "PostProcess" >> beam.ParDo(GemmaPostProcessor())
+            | "PostProcess"  >> beam.ParDo(GemmaPostProcessor())
             | "WriteBQ"
             >> beam.io.WriteToBigQuery(
                 opts.output_table,
