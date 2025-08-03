@@ -10,11 +10,11 @@
 --num_workers=20
 --input_options={}
 --max_num_workers=250
---autoscaling_algorithm=THROUGHPUT_BASED
+--autoscaling_algorithm=NONE
 --publish_to_big_query=true
 --metrics_dataset=beam_run_inference
 --metrics_table=gemma_vllm_batch
 --influx_measurement=gemma_vllm_batch
 --device=GPU
---worker_accelerator=type:nvidia-tesla-t4,count:1,install-nvidia-driver=true
---sdk_container_image=gcr.io/cloud-dataflow-tools/beam3.2.0-python310-gpu
+--experiments=worker_accelerator=type:nvidia-tesla-t4;count:1;install-nvidia-driver:5xx
+--sdk_container_image=us.gcr.io/apache-beam-testing/python-postcommit-it/tensor_rt:latest
