@@ -8,6 +8,7 @@
 --machine_type=n1-standard-2
 --disk_size_gb=50
 --num_workers=20
+--input_options={}
 --max_num_workers=250
 --autoscaling_algorithm=THROUGHPUT_BASED
 --publish_to_big_query=true
