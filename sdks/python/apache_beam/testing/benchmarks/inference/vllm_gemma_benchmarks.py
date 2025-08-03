@@ -1,8 +1,6 @@
 import logging
-from apache_beam.examples.batch import vllm_gemma_batch
-from apache_beam.testing.load_tests.dataflow_cost_benchmark import (
-    DataflowCostBenchmark,
-)
+from apache_beam.examples.inference import vllm_gemma_batch
+from apache_beam.testing.load_tests.dataflow_cost_benchmark import DataflowCostBenchmark
 
 
 class VllmGemmaBenchmarkTest(DataflowCostBenchmark):
