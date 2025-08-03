@@ -1,11 +1,6 @@
 #  Licensed to the Apache Software Foundation (ASF) ...
 """
-Batch pipeline: Gemma-2B-it via vLLM → BigQuery.
-
-• Launch from any CPU machine; vLLM is imported only inside Dataflow workers.
-• Requires Dataflow flags:
-    --sdk_container_image=...python310-gpu
-    --worker_accelerator=type:nvidia-tesla-t4,count:1,install-nvidia-driver=true
+Batch pipeline: Gemma-2B-it via vLLM → BigQuery, launchable from CPU hosts.
 """
 
 from __future__ import annotations
@@ -48,6 +43,10 @@ class GemmaPostProcessor(beam.DoFn):
 # 2. Lazy vLLM handler (imports vLLM only on the worker)
 # --------------------------------------------------------------------------- #
 class LazyVLLMCompletionsHandler(ModelHandler):
+    """A thin wrapper that postpones the vLLM import until we actually need
+    to *run* inference on a GPU worker.  Methods queried on the client
+    (`batch_elements_kwargs`, `get_num_bytes`) are implemented here directly
+    and do NOT touch vLLM."""
     def __init__(self, model_name: str, vllm_server_kwargs: dict | None = None):
         self._model_name = model_name
         self._vllm_kwargs = vllm_server_kwargs or {}
@@ -79,13 +78,15 @@ class LazyVLLMCompletionsHandler(ModelHandler):
         self._ensure_delegate()
         return self._delegate.run_inference(batch, model, inference_args)
 
+    # These two methods are called during pipeline *construction* on the
+    # launcher machine, so we must NOT import vLLM here.
     def get_num_bytes(self, batch) -> int:
-        self._ensure_delegate()
-        return self._delegate.get_num_bytes(batch)
+        # crude size estimate: UTF-8 bytes of each prompt
+        return sum(len(b.encode("utf-8")) for b in batch)
 
     def batch_elements_kwargs(self):
-        self._ensure_delegate()
-        return self._delegate.batch_elements_kwargs()
+        # Safe defaults; adjust if you want larger batches on the worker.
+        return {"min_batch_size": 1, "max_batch_size": 8}
 
 
 # --------------------------------------------------------------------------- #
