@@ -35,6 +35,8 @@ from apache_beam.options.pipeline_options import (
     StandardOptions,
 )
 
+import torch
+
 
 class GemmaPostProcessor(beam.DoFn):
     """Turn vLLM PredictionResult into a BigQuery-ready dict."""
@@ -81,42 +83,39 @@ def _parse(argv=None):
 
 
 def run(argv=None, save_main_session=True, test_pipeline=None):
+    if not torch.cuda.is_available():
+        from unittest import SkipTest
+        raise SkipTest("CUDA not available -- vLLM requires a GPU runtime")
+
     opts, pipeline_args = _parse(argv)
 
-    # Lazy import so CPU environments don’t need libcuda.so
-    from apache_beam.ml.inference.vllm_inference import (
-        VLLMCompletionsModelHandler,
-    )
+    # Lazy import after the CUDA check
+    from apache_beam.ml.inference.vllm_inference import \
+        VLLMCompletionsModelHandler
 
     handler = VLLMCompletionsModelHandler(
         model_name=opts.model_name,
-        vllm_server_kwargs={"gpu_memory_utilization": "0.9"},
+        vllm_server_kwargs={"gpu_memory_utilization": "0.9"}
     )
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(StandardOptions).streaming = False
-    pipeline_options.view_as(SetupOptions).save_main_session = (
-        save_main_session
-    )
+    pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
     with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
         (
             p
-            | "ReadText" >> beam.io.ReadFromText(opts.input)
-            | "StripBlank" >> beam.Filter(lambda ln: ln.strip())
+            | "ReadText"    >> beam.io.ReadFromText(opts.input)
+            | "StripBlank"  >> beam.Filter(lambda ln: ln.strip())
             | "RunInference" >> RunInference(handler)
             | "PostProcess" >> beam.ParDo(GemmaPostProcessor())
-            | "WriteBQ"
-            >> beam.io.WriteToBigQuery(
+            | "WriteBQ"     >> beam.io.WriteToBigQuery(
                 opts.output_table,
-                schema=(
-                    "prompt:STRING, completion:STRING,"
-                    "prompt_tokens:INTEGER, completion_tokens:INTEGER"
-                ),
+                schema=("prompt:STRING, completion:STRING,"
+                        "prompt_tokens:INTEGER, completion_tokens:INTEGER"),
                 write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
                 create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-                method=beam.io.WriteToBigQuery.Method.FILE_LOADS,
-            )
+                method=beam.io.WriteToBigQuery.Method.FILE_LOADS)
         )
 
 
