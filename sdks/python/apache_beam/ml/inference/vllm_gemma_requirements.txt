@@ -3,3 +3,4 @@ numpy<2
 vllm==0.4.0
 transformers>=4.41.0
 openai>=1.25.0
+google-cloud-monitoring>=2.27.0
