@@ -85,11 +85,10 @@ jobs:
         working-directory: ./sdks/python
         run: tox -c tox.ini -e ${{ matrix.params.tox_env }}-dask
 
-      # --- Start of the new fix for Windows ---
       - name: Run tests basic windows
         if: startsWith(matrix.os, 'windows')
         working-directory: ./sdks/python
-        shell: bash  # Using bash is still good practice for command consistency
+        shell: bash
         run: |
           # 1. Install dependencies from 'commands_pre' in tox.ini
           pip install "distributed>=2024.4.2,<2024.9.0" "dask>=2024.4.2,<2024.9.0"
@@ -98,15 +97,12 @@ jobs:
           python apache_beam/examples/complete/autocomplete_test.py
 
           # 3. Run the dask tests directly, bypassing the broken run_pytest.sh script
-          #    We use the correct Python module path for --pyargs
-          #    And generate JUnit XML reports for the upload artifact step
-
           echo "Running parallel Dask tests (not no_xdist)..."
           pytest -m "not no_xdist" --junitxml="pytest-dask-parallel.xml" --pyargs apache_beam.runners.dask
 
           echo "Running sequential Dask tests (no_xdist)..."
-          pytest -m "no_xdist" --junitxml="pytest-dask-sequential.xml" --pyargs apache_beam.runners.dask
-      # --- End of the new fix for Windows ---
+          # Add --no-tests-found-exit-code=0 to prevent failure if no sequential tests exist
+          pytest -m "no_xdist" --junitxml="pytest-dask-sequential.xml" --pyargs apache_beam.runners.dask --no-tests-found-exit-code=0
 
       - name: Upload test logs
         uses: actions/upload-artifact@v4
