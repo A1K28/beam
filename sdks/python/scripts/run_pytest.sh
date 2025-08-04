@@ -81,38 +81,49 @@ if [[ -n $user_marker ]]; then
   marker_for_sequential_tests="$user_marker and ($marker_for_sequential_tests)"
 fi
 
-# ==================== FIXED SECTION START ====================
-#
-# Use `read -r -a` to safely split posargs into an array without interpreting
-# backslashes. This is a safe alternative to the problematic `eval "set -- ..."`.
-#
+# Parse posargs to separate pytest options from test paths.
 options=""
 test_paths=""
-read -r -a args_array <<< "$posargs"
 
-# Iterate through the array of arguments.
-i=0
-while [[ $i -lt ${#args_array[@]} ]]; do
-  arg="${args_array[$i]}"
-  i=$((i+1))
+# ==================== MINIMAL FIX ====================
+# On Windows, convert backslashes to forward slashes to prevent `eval` from
+# misinterpreting them as escape characters. This is the only change needed.
+posargs=${posargs//\\//}
+# =====================================================
 
-  # If argument starts with a dash, it's an option.
+# Safely split the posargs string into individual arguments.
+eval "set -- $posargs"
+
+# Iterate through arguments.
+while [[ $# -gt 0 ]]; do
+  arg="$1"
+  shift
+
+  # If argument starts with dash, it's an option.
   if [[ "$arg" == -* ]]; then
-    options+=" \"$arg\""
+    options+=" $arg"
 
     # Check if there's a next argument and it doesn't start with a dash.
     # This assumes it's a value for the current option.
-    if [[ $i -lt ${#args_array[@]} && "${args_array[$i]}" != -* ]]; then
-      options+=" \"${args_array[$i]}\""
-      i=$((i+1))
+    if [[ $# -gt 0 && "$1" != -* ]]; then
+      # Get the next argument.
+      next_arg="$1"
+
+      # Check if it's quoted and remove quotes if needed.
+      if [[ $next_arg =~ $quotes_regex ]]; then
+        # Extract the content inside quotes.
+        next_arg="${BASH_REMATCH[1]}"
+      fi
+
+      # Add the unquoted value to options.
+      options+=" $next_arg"
+      shift
     fi
   else
     # Otherwise it's a test path.
-    test_paths+=" \"$arg\""
+    test_paths+=" $arg"
   fi
 done
-# ===================== FIXED SECTION END =====================
-
 
 # Construct the final pytest command arguments.
 pyargs_section=""
