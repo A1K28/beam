@@ -2,7 +2,7 @@
 --region=us-central1
 --temp_location=gs://temp-storage-for-perf-tests/loadtests
 --staging_location=gs://temp-storage-for-perf-tests/loadtests
---input=gs://apache-beam-ml/testing/inputs/sentences_50k.txt
+--input=gs://apache-beam-ml/testing/inputs/sentences_5k.txt
 --model_name=google/gemma-2b-it
 --machine_type=a2-highgpu-1g
 --disk_size_gb=200
