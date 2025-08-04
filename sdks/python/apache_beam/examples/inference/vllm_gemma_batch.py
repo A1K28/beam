@@ -128,8 +128,12 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         except Exception as e:
             # Detect the internal sequence-group KeyError from vLLM engine.
             msg = str(e)
-            if "parent_child_dict" in msg or "KeyError" in msg and "while running" in msg:
-                logging.warning("Detected vLLM internal KeyError during generate, retrying once. Exception: %s", msg)
+            # The KeyError from vLLM is the root cause. This check is more robust.
+            if isinstance(e, KeyError):
+                logging.warning(
+                    "Detected vLLM internal KeyError during generate, "
+                    "retrying once. Exception: %s", msg
+                )
                 # Re-create the engine to recover from corrupted state.
                 try:
                     # Assumes model loader is idempotent; reload fresh engine.
