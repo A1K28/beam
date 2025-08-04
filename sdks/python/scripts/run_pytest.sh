@@ -30,8 +30,8 @@
 set -euo pipefail
 
 envname=${1?First argument required: suite base name}
-posargs=$2
-pytest_args=$3
+posargs=${2:-}
+pytest_args=${3:-}
 
 # strip leading/trailing quotes from posargs because it can get double quoted as
 # its passed through.
@@ -73,7 +73,7 @@ if [[ -n $user_marker ]]; then
   marker_for_sequential_tests="$user_marker and ($marker_for_sequential_tests)"
 fi
 
-# === New, more deterministic target handling ===
+# === Deterministic target handling ===
 
 options=""
 test_paths_raw=()
@@ -106,7 +106,7 @@ for tp in "${test_paths_raw[@]}"; do
     # Absolute Windows path: keep as-is
     processed_targets+=("$tp")
   elif [[ "$tp" == *"/"* || "$tp" == *"\\"* ]]; then
-    # Relative path with slashes -> convert to module
+    # Relative path with slashes -> convert to module name
     mod=${tp//[\\/]/.}
     processed_targets+=("$mod")
   else
@@ -122,7 +122,6 @@ if [[ ${#processed_targets[@]} -eq 1 && "${processed_targets[0]}" =~ ^[A-Za-z]:[
   pyargs_section="${processed_targets[0]}"
 else
   if [[ ${#processed_targets[@]} -gt 0 ]]; then
-    # join with spaces for --pyargs
     joined_targets="${processed_targets[*]}"
     pyargs_section="--pyargs $joined_targets"
   fi
