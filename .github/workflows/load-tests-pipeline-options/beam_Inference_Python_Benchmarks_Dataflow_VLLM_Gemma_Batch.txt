@@ -17,4 +17,5 @@
 --device=GPU
 --model_gcs_path=gs://apache-beam-ml/models/gemma-2b-it
 --experiments=worker_accelerator=type:nvidia-tesla-a100;count:1;install-nvidia-driver
---sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v1.3_NVIDIA
+--sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v1.4_NVIDIA
+--sdk_location=container
