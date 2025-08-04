@@ -6,8 +6,8 @@
 --model_name=google/gemma-2b-it
 --machine_type=a2-highgpu-1g
 --disk_size_gb=50
---num_workers=10
---max_num_workers=50
+--num_workers=2
+--max_num_workers=20
 --input_options={}
 --autoscaling_algorithm=THROUGHPUT_BASED
 --publish_to_big_query=true
@@ -15,5 +15,6 @@
 --metrics_table=gemma_vllm_batch
 --influx_measurement=gemma_vllm_batch
 --device=GPU
+--model_gcs_path=gs://apache-beam-ml/models/gemma-2b-it
 --experiments=worker_accelerator=type:nvidia-tesla-a100;count:1;install-nvidia-driver:5xx
---sdk_container_image=us.gcr.io/apache-beam-testing/beam-gemma-gpu-shaded:latest
+--sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:latest
