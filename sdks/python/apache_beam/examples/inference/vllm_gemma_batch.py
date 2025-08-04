@@ -43,10 +43,11 @@ class GemmaVLLMOptions(PipelineOptions):
 # 2. Post-processing DoFn
 # =================================================================
 class GemmaPostProcessor(beam.DoFn):
-    def process(self, element: tuple[str, PredictionResult]) -> Iterable[dict]:
-        prompt, pred = element
-        vllm_output = pred.inference
-        choice = vllm_output.outputs[0]
+    def process(self, element: PredictionResult):
+        prompt = element.example            # your original prompt string
+        vllm_output = element.inference     # vLLM Completion or Chat object
+
+        choice = vllm_output.outputs[0]     # first candidate
         yield {
             "prompt": prompt,
             "completion": choice.text.strip(),
