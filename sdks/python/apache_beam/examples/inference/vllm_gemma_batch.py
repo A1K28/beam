@@ -6,7 +6,9 @@ Batch pipeline: Gemma-2B-it via vLLM → BigQuery, loading model from GCS.
 from __future__ import annotations
 
 import os
+import gc
 import sys
+import torch
 import logging
 import tempfile
 import multiprocessing as mp
@@ -126,28 +128,32 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         try:
             results = model.generate(batch, **(inference_args or {}))
         except Exception as e:
-            # Detect the internal sequence-group KeyError from vLLM engine.
             msg = str(e)
-            # The KeyError from vLLM is the root cause. This check is more robust.
             if isinstance(e, KeyError):
                 logging.warning(
-                    "Detected vLLM internal KeyError during generate, "
-                    "retrying once. Exception: %s", msg
+                    "Detected vLLM internal KeyError during generate. "
+                    "Attempting to recover by reloading the model. Exception: %s", msg
                 )
-                # Re-create the engine to recover from corrupted state.
                 try:
-                    # Assumes model loader is idempotent; reload fresh engine.
+                    # Explicitly release the old model's resources before loading a new one.
+                    logging.info("Releasing resources from the failed model instance.")
+                    del model
+                    gc.collect()
+                    torch.cuda.empty_cache()
+
+                    # Now, attempt to load a fresh model instance.
+                    logging.info("Loading a new model instance for retry.")
                     new_model = self.load_model()
                     results = new_model.generate(batch, **(inference_args or {}))
-                    model = new_model  # swap for future calls
+                    model = new_model  # Assign the new, working model for subsequent calls
                 except Exception as e2:
-                    logging.error("Retry after internal KeyError also failed: %s", e2)
+                    logging.error("Model recovery and retry also failed: %s", e2)
                     raise
             else:
                 raise
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
-
-
+    
+    
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
