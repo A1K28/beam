@@ -16,5 +16,5 @@
 --influx_measurement=gemma_vllm_batch
 --device=GPU
 --model_gcs_path=gs://apache-beam-ml/models/gemma-2b-it
---experiments=worker_accelerator=type:nvidia-tesla-a100;count:1;install-nvidia-driver:5xx
+--experiments=worker_accelerator=type:nvidia-tesla-a100;count:1;install-nvidia-driver
 --sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:20250804-052611
