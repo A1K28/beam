@@ -6,14 +6,19 @@ Batch pipeline: Gemma-2B-it via vLLM → BigQuery, loading model from GCS.
 from __future__ import annotations
 
 import os
+import sys
 import logging
 import tempfile
+import multiprocessing as mp
 from collections.abc import Iterable
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInference
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+
+# Force safe multiprocessing start method early (avoid CUDA/fork issues).
+mp.set_start_method("spawn", force=True)
 
 # =================================================================
 # 1. Custom Pipeline Options
@@ -44,10 +49,10 @@ class GemmaVLLMOptions(PipelineOptions):
 # =================================================================
 class GemmaPostProcessor(beam.DoFn):
     def process(self, element: PredictionResult):
-        prompt = element.example            # your original prompt string
-        vllm_output = element.inference     # vLLM Completion or Chat object
+        prompt = element.example
+        vllm_output = element.inference
 
-        choice = vllm_output.outputs[0]     # first candidate
+        choice = vllm_output.outputs[0]
         yield {
             "prompt": prompt,
             "completion": choice.text.strip(),
@@ -66,37 +71,58 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
         self._model_gcs_path = model_gcs_path
         self._vllm_kwargs = vllm_kwargs or {}
+        self._local_path = None  # cached after download
+
+    def batch_elements_kwargs(self):
+        return {"max_batch_size": 4}  # small to avoid OOM / engine death
 
     def load_model(self):
         from vllm import LLM
-        local_model_dir = tempfile.mkdtemp()
-        gcs_dir_path = self._model_gcs_path.rstrip('/')
-        gcs_path_pattern = f"{gcs_dir_path}/*"
+        import vllm, torch
 
-        logging.info(f"Searching for model files in GCS with pattern: {gcs_path_pattern}")
+        logging.info(f"vLLM version: {vllm.__version__}, torch version: {torch.__version__}, python: {sys.version}")
 
-        match_results = FileSystems.match([gcs_path_pattern])
-        if not match_results or not match_results[0].metadata_list:
-            raise RuntimeError(f"No files found matching pattern {gcs_path_pattern}.")
+        # Ensure engine has more time before being considered hung.
+        os.environ.setdefault("VLLM_ENGINE_ITERATION_TIMEOUT_S", "180")
+        os.environ.setdefault("VLLM_DEBUG", "1")  # turn on debug for root cause visibility
 
-        file_metadata_list = match_results[0].metadata_list
-        logging.info(f"Found {len(file_metadata_list)} model files to download.")
+        if self._local_path is None:
+            local_model_dir = tempfile.mkdtemp()
+            self._local_path = local_model_dir
+            gcs_dir_path = self._model_gcs_path.rstrip('/')
+            gcs_path_pattern = f"{gcs_dir_path}/*"
 
-        for metadata in file_metadata_list:
-            source_path = metadata.path
-            destination_filename = os.path.basename(source_path)
-            destination_path = os.path.join(local_model_dir, destination_filename)
-            logging.info(f"Copying {source_path} to {destination_path}...")
-            with FileSystems.open(source_path, 'rb') as f_source:
-                with open(destination_path, 'wb') as f_dest:
-                    f_dest.write(f_source.read())
+            logging.info(f"Searching for model files in GCS with pattern: {gcs_path_pattern}")
 
-        logging.info(f"Model download complete. Contents of {local_model_dir}: {os.listdir(local_model_dir)}")
-        return LLM(model=local_model_dir, **self._vllm_kwargs)
+            match_results = FileSystems.match([gcs_path_pattern])
+            if not match_results or not match_results[0].metadata_list:
+                raise RuntimeError(f"No files found matching pattern {gcs_path_pattern}.")
+
+            file_metadata_list = match_results[0].metadata_list
+            logging.info(f"Found {len(file_metadata_list)} model files to download.")
+
+            for metadata in file_metadata_list:
+                source_path = metadata.path
+                destination_filename = os.path.basename(source_path)
+                destination_path = os.path.join(local_model_dir, destination_filename)
+                logging.info(f"Copying {source_path} to {destination_path}...")
+                with FileSystems.open(source_path, 'rb') as f_source:
+                    with open(destination_path, 'wb') as f_dest:
+                        f_dest.write(f_source.read())
+
+            logging.info(f"Model download complete. Contents of {local_model_dir}: {os.listdir(local_model_dir)}")
+
+        # Leave some headroom (e.g., 0.85 instead of 0.9)
+        effective_kwargs = dict(self._vllm_kwargs)
+        effective_kwargs.setdefault("gpu_memory_utilization", 0.85)
+        effective_kwargs.setdefault("dtype", "bfloat16")
+
+        return LLM(model=self._local_path, **effective_kwargs)
 
     def run_inference(
         self, batch: list[str], model: object, inference_args: dict | None = None
     ) -> Iterable[PredictionResult]:
+        logging.info(f"Running inference on batch of size {len(batch)}")
         results = model.generate(batch, **(inference_args or {}))
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
 
@@ -110,11 +136,9 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
 
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gemma_options.model_gcs_path,
-        vllm_kwargs={"gpu_memory_utilization": 0.9, "dtype": "bfloat16"},
+        vllm_kwargs={"gpu_memory_utilization": 0.85, "dtype": "bfloat16"},
     )
 
-    # This line is the key change: it uses the test_pipeline if it's
-    # provided, otherwise it creates a new one.
     with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
         (
             p
