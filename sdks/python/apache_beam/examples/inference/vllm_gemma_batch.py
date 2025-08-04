@@ -165,10 +165,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gemma_options.model_gcs_path,
         vllm_kwargs={
-            "gpu_memory_utilization": 0.75,
-            "dtype": "bfloat16",
-            "async_scheduling": True,
-            "chunked_prefill": False,
+            "gpu_memory_utilization": 0.8,
+            "dtype": "bfloat16"
         },
     )
 
