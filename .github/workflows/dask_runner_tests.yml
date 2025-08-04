@@ -86,6 +86,7 @@ jobs:
         run: tox -c tox.ini -e ${{ matrix.params.tox_env }}-dask
       - name: Run tests basic windows
         if: startsWith(matrix.os, 'windows')
+        shell: bash
         working-directory: ./sdks/python
         run: tox -c tox.ini -e ${{ matrix.params.tox_env }}-win-dask
       - name: Upload test logs
