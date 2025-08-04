@@ -76,7 +76,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         self._local_path = None  # cached after download
 
     def batch_elements_kwargs(self):
-        return {"max_batch_size": 4}  # small to avoid OOM / engine death
+        return {"max_batch_size": 1}
 
     def load_model(self):
         from vllm import LLM
@@ -164,8 +164,12 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
 
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gemma_options.model_gcs_path,
-        # Give more headroom to survive recovery after a memory leak
-        vllm_kwargs={"gpu_memory_utilization": 0.80, "dtype": "bfloat16"},
+        vllm_kwargs={
+            "gpu_memory_utilization": 0.75,
+            "dtype": "bfloat16",
+            "async_scheduling": True,
+            "chunked_prefill": False,
+        },
     )
 
     with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
