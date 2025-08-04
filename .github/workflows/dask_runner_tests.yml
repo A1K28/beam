@@ -37,7 +37,7 @@ jobs:
 
   build_python_sdk_source:
     name: 'Build python source distribution'
-    runs-on: ubuntu-latest
+    runs-on: main
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
