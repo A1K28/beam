@@ -98,7 +98,7 @@ jobs:
           arguments: |
             -PloadTest.mainClass=apache_beam.testing.benchmarks.inference.vllm_gemma_benchmarks \
             -Prunner=DataflowRunner \
-            -PpythonVersion=3.12 \
+            -PpythonVersion=3.10 \
             -PloadTest.requirementsTxtFile=apache_beam/ml/inference/vllm_gemma_requirements.txt \
             '-PloadTest.args=${{ env.beam_Inference_Python_Benchmarks_Dataflow_test_arguments_8 }} \
             --mode=batch \
