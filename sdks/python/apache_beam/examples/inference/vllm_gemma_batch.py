@@ -102,7 +102,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
-def run(argv=None, save_main_session=True):
+def run(argv=None, save_main_session=True, test_pipeline=None):
     pipeline_options = PipelineOptions(argv)
     gemma_options = pipeline_options.view_as(GemmaVLLMOptions)
     pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
@@ -112,7 +112,9 @@ def run(argv=None, save_main_session=True):
         vllm_kwargs={"gpu_memory_utilization": 0.9, "dtype": "bfloat16"},
     )
 
-    with beam.Pipeline(options=pipeline_options) as p:
+    # This line is the key change: it uses the test_pipeline if it's
+    # provided, otherwise it creates a new one.
+    with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
         (
             p
             | "ReadPrompts" >> beam.io.ReadFromText(gemma_options.input_file)
