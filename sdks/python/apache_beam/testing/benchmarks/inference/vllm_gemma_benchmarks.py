@@ -19,10 +19,9 @@ class VllmGemmaBenchmarkTest(DataflowCostBenchmark):
 
         self.result = vllm_gemma_batch.run(
             self.pipeline.get_full_options_as_args(**extra_opts) + [
-                "--experiments=use_runner_v2,no_use_multiple_sdk_containers",
                 "--sdk_worker_parallelism=0",
                 "--worker_machine_type=a2-highgpu-1g",
-                "--experiments=worker_accelerator=type:nvidia-tesla-a100;count:1;install-nvidia-driver",
+                "--experiments=use_runner_v2,no_use_multiple_sdk_containers,worker_accelerator=type:nvidia-tesla-a100;count:1;install-nvidia-driver",
             ],
             test_pipeline=self.pipeline,
         )
