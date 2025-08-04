@@ -123,8 +123,26 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         self, batch: list[str], model: object, inference_args: dict | None = None
     ) -> Iterable[PredictionResult]:
         logging.info(f"Running inference on batch of size {len(batch)}")
-        results = model.generate(batch, **(inference_args or {}))
+        try:
+            results = model.generate(batch, **(inference_args or {}))
+        except Exception as e:
+            # Detect the internal sequence-group KeyError from vLLM engine.
+            msg = str(e)
+            if "parent_child_dict" in msg or "KeyError" in msg and "while running" in msg:
+                logging.warning("Detected vLLM internal KeyError during generate, retrying once. Exception: %s", msg)
+                # Re-create the engine to recover from corrupted state.
+                try:
+                    # Assumes model loader is idempotent; reload fresh engine.
+                    new_model = self.load_model()
+                    results = new_model.generate(batch, **(inference_args or {}))
+                    model = new_model  # swap for future calls
+                except Exception as e2:
+                    logging.error("Retry after internal KeyError also failed: %s", e2)
+                    raise
+            else:
+                raise
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
+
 
 # =================================================================
 # 4. Pipeline Execution
