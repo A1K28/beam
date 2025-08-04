@@ -67,6 +67,12 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         self._model_gcs_path = model_gcs_path
         self._vllm_kwargs = vllm_kwargs or {}
 
+    def share_model_across_processes(self) -> bool:
+        return True          # Beam loads the model once per VM
+    
+    def model_copies(self) -> int:
+        return 1             # extra safety
+
     def load_model(self):
         from vllm import LLM
         local_model_dir = tempfile.mkdtemp()
