@@ -153,7 +153,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
                 raise
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
     
-    
+
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
@@ -164,7 +164,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
 
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gemma_options.model_gcs_path,
-        vllm_kwargs={"gpu_memory_utilization": 0.85, "dtype": "bfloat16"},
+        # Give more headroom to survive recovery after a memory leak
+        vllm_kwargs={"gpu_memory_utilization": 0.80, "dtype": "bfloat16"},
     )
 
     with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
