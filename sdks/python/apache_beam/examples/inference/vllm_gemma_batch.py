@@ -5,6 +5,7 @@ Batch pipeline: Gemma-2B-it via vLLM → BigQuery, loading model from GCS.
 
 from __future__ import annotations
 
+import os
 import argparse
 import logging
 import tempfile
@@ -54,18 +55,36 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 
         # Create a temporary local directory to hold the model files
         local_model_dir = tempfile.mkdtemp()
+        
+        # Ensure the GCS path is treated as a directory and create a search pattern
+        gcs_dir_path = self._model_gcs_path.rstrip('/')
+        gcs_path_pattern = f"{gcs_dir_path}/*"
 
-        # Use Beam's FileSystems to find and copy all model files
-        gcs_path_pattern = FileSystems.join(self._model_gcs_path, "*")
-        file_metadata_list = FileSystems.match([gcs_path_pattern])[0].metadata_list
+        logging.info(f"Searching for model files in GCS with pattern: {gcs_path_pattern}")
 
-        logging.info(f"Starting model download from {self._model_gcs_path} to {local_model_dir}")
+        # Use Beam's FileSystems to find all model files
+        match_results = FileSystems.match([gcs_path_pattern])
+        file_metadata_list = match_results[0].metadata_list
+
+        if not file_metadata_list:
+            raise RuntimeError(f"No files found matching pattern {gcs_path_pattern}. "
+                               f"Please ensure the GCS path is correct and contains model files.")
+        
+        logging.info(f"Found {len(file_metadata_list)} model files to download.")
+
+        # Copy each file from GCS to the local temp directory
         for metadata in file_metadata_list:
             source_path = metadata.path
-            destination_path = FileSystems.join(local_model_dir, FileSystems.split(source_path)[-1])
-            FileSystems.copy([source_path], [destination_path])
-        logging.info("Model download complete.")
+            destination_filename = os.path.basename(source_path)
+            destination_path = os.path.join(local_model_dir, destination_filename)
 
+            logging.info(f"Copying {source_path} to {destination_path}...")
+            with FileSystems.open(source_path, 'rb') as f_source:
+                with open(destination_path, 'wb') as f_dest:
+                    f_dest.write(f_source.read())
+
+        logging.info(f"Model download complete. Contents of {local_model_dir}: {os.listdir(local_model_dir)}")
+        
         # Initialize the vLLM engine with the local path
         return LLM(model=local_model_dir, **self._vllm_kwargs)
 
