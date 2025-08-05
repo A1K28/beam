@@ -99,11 +99,17 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 
     def batch_elements_kwargs(self):
         return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 16)}
+    
+    def check_gpu(self):
+        import torch
+        logging.info("[MODEL HANDLER] Checking for GPU availability: %s", torch.cuda.is_available())
 
     def load_model(self):
         # LOGGING: Announce start of the critical model loading process
         logging.info("--- [MODEL HANDLER] Starting load_model() ---")
         start_time = time.time()
+
+        self.check_gpu()
 
         # LOGGING: Lazy import vLLM
         logging.info("[MODEL HANDLER] Importing vLLM libraries...")
