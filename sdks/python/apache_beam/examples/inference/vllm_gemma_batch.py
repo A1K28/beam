@@ -21,8 +21,6 @@ Batch pipeline: Gemma-2B-it via vLLM Async Engine → BigQuery, loading model fr
 from __future__ import annotations
 
 import os
-import gc
-import sys
 import logging
 import tempfile
 import multiprocessing as mp
@@ -103,7 +101,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 
     def batch_elements_kwargs(self):
         # Use 128 as max_batch_size (or from vllm_kwargs if provided)
-        return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 100)}
+        return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 128)}
 
     def check_gpu(self):
         import torch
@@ -141,7 +139,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
             "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
             "gpu_memory_utilization": self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
             "dtype": self._vllm_kwargs.get("dtype", "bfloat16"),
-            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 100),
+            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 128),
         }
         args = AsyncEngineArgs(**engine_args)
         logging.info("[MODEL HANDLER] Creating AsyncLLMEngine (this can take minutes)...")
@@ -198,6 +196,9 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
+# =================================================================
+# 4. Pipeline Execution
+# =================================================================
 def run(argv=None, save_main_session=True, test_pipeline=None):
     # Build pipeline options
     opts = PipelineOptions(argv)
@@ -208,7 +209,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gem.model_gcs_path,
-        vllm_kwargs={"gpu_memory_utilization": 0.8, "dtype": "bfloat16", "max_num_seqs": 100},
+        vllm_kwargs={"gpu_memory_utilization": 0.8, "dtype": "bfloat16", "max_num_seqs": 128},
     )
 
     with (test_pipeline or beam.Pipeline(options=opts)) as p:
@@ -222,7 +223,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
             | "Post" >> beam.ParDo(GemmaPostProcessor())
             | "WriteToBQ" >> beam.io.WriteToBigQuery(
                 gem.output_table,
-                schema="prompt:STRING,completion:STRING,prompt_tokens:INT,completion_tokens:INT",
+                schema="prompt:STRING,completion:STRING,prompt_tokens:INTEGER,completion_tokens:INTEGER",
                 write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
                 create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
                 method=beam.io.WriteToBigQuery.Method.FILE_LOADS,
