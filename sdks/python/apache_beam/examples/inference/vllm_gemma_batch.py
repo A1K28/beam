@@ -85,39 +85,32 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
         self._model_gcs_path = model_gcs_path
         self._vllm_kwargs = vllm_kwargs or {}
-        self._local_path: str | None = None  # cached after download
+        self._local_path: str | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def batch_elements_kwargs(self):
-        # Align max_batch_size with max_num_seqs
         return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 16)}
 
     def load_model(self):
-        # Local imports to avoid requiring vllm on GitHub runners
         from vllm.engine.async_llm_engine import AsyncLLMEngine
         from vllm.engine.arg_utils import AsyncEngineArgs
         from vllm.usage.usage_lib import UsageContext
 
-        # Download model artifacts from GCS once per worker
         if self._local_path is None:
-            local_model_dir = tempfile.mkdtemp()
-            self._local_path = local_model_dir
+            local_dir = tempfile.mkdtemp()
+            self._local_path = local_dir
             gcs_dir = self._model_gcs_path.rstrip('/')
-            pattern = f"{gcs_dir}/*"
+            matches = FileSystems.match([f"{gcs_dir}/*"])
+            metas = matches[0].metadata_list if matches else []
+            if not metas:
+                raise RuntimeError(f"No files found for {gcs_dir}")
+            for m in metas:
+                src = m.path
+                dst = os.path.join(local_dir, os.path.basename(src))
+                with FileSystems.open(src, 'rb') as fs, open(dst, 'wb') as fd:
+                    fd.write(fs.read())
 
-            match_results = FileSystems.match([pattern])
-            metadata_list = match_results[0].metadata_list if match_results else []
-            if not metadata_list:
-                raise RuntimeError(f"No files found matching pattern {pattern}.")
-
-            for metadata in metadata_list:
-                src = metadata.path
-                dst = os.path.join(local_model_dir, os.path.basename(src))
-                with FileSystems.open(src, 'rb') as f_src, open(dst, 'wb') as f_dst:
-                    f_dst.write(f_src.read())
-
-        # Build engine arguments from kwargs
-        engine_args = AsyncEngineArgs(
+        args = AsyncEngineArgs(
             model=self._local_path,
             engine_use_ray=False,
             enforce_eager=self._vllm_kwargs.get("enforce_eager", False),
@@ -125,12 +118,8 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
             dtype=self._vllm_kwargs.get("dtype", "bfloat16"),
             max_num_seqs=self._vllm_kwargs.get("max_num_seqs", 16),
         )
-        engine = AsyncLLMEngine.from_engine_args(
-            engine_args,
-            usage_context=UsageContext.API_SERVER,
-        )
+        engine = AsyncLLMEngine.from_engine_args(args, usage_context=UsageContext.API_SERVER)
 
-        # Create and store a dedicated event loop for async execution
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         return engine
@@ -141,70 +130,53 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         model: object,
         inference_args: dict | None = None,
     ) -> Iterable[PredictionResult]:
-        # Ensure event loop exists
         if self._loop is None:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
 
-        # Lazy import to ensure vllm is only required on Dataflow workers
         from vllm import SamplingParams
 
-        logging.info(f"Running async inference on batch of size {len(batch)}")
-        sampling_params = SamplingParams()
-        request_id = str(uuid.uuid4())
+        logging.info(f"Async inferencing batch size {len(batch)}")
+        sampling = SamplingParams()
+        rid = str(uuid.uuid4())
 
-        # Prepare inputs as mapping per prompt
-        inputs = [ {"prompt": text} for text in batch ]
+        inputs = {"prompt": batch}
+        async_gen = model.generate(inputs, sampling, rid)
+        collected: list = []
 
-        # Create the async generator
-        async_gen = model.generate(inputs, sampling_params, request_id)
-        outputs: list = []
+        async def _drain():
+            async for out in async_gen:
+                collected.append(out)
+        self._loop.run_until_complete(_drain())
 
-        async def _collect():
-            async for output in async_gen:
-                outputs.append(output)
-
-        self._loop.run_until_complete(_collect())
-
-        # Assemble final results
         results: list[PredictionResult] = []
-        for prompt in batch:
-            last_output = next(o for o in reversed(outputs) if o.prompt == prompt)
-            results.append(PredictionResult(prompt, last_output))
-
+        for p in batch:
+            match = next(o for o in reversed(collected) if o.prompt == p)
+            results.append(PredictionResult(p, match))
         return results
 
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
 def run(argv=None, save_main_session=True, test_pipeline=None):
-    pipeline_options = PipelineOptions(argv)
-    gemma_options = pipeline_options.view_as(GemmaVLLMOptions)
-    pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
+    opts = PipelineOptions(argv)
+    gem = opts.view_as(GemmaVLLMOptions)
+    opts.view_as(SetupOptions).save_main_session = save_main_session
 
     handler = VLLMModelHandlerGCS(
-        model_gcs_path=gemma_options.model_gcs_path,
-        vllm_kwargs={
-            "gpu_memory_utilization": 0.8,
-            "dtype": "bfloat16",
-            "max_num_seqs": 16,
-        },
+        model_gcs_path=gem.model_gcs_path,
+        vllm_kwargs={"gpu_memory_utilization":0.8, "dtype":"bfloat16", "max_num_seqs":16},
     )
-
-    with (test_pipeline or beam.Pipeline(options=pipeline_options)) as p:
+    with (test_pipeline or beam.Pipeline(options=opts)) as p:
         (
             p
-            | "ReadPrompts" >> beam.io.ReadFromText(gemma_options.input_file)
-            | "StripBlank" >> beam.Filter(lambda ln: ln.strip())
-            | "RunInference" >> RunInference(handler)
-            | "PostProcess" >> beam.ParDo(GemmaPostProcessor())
-            | "WriteBQ"
-            >> beam.io.WriteToBigQuery(
-                gemma_options.output_table,
-                schema=(
-                    "prompt:STRING, completion:STRING,"
-                    "prompt_tokens:INTEGER, completion_tokens:INTEGER"
-                ),
+            | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+            | "NonEmpty" >> beam.Filter(lambda l: l.strip())
+            | "Infer" >> RunInference(handler)
+            | "Post" >> beam.ParDo(GemmaPostProcessor())
+            | "WriteToBQ" >> beam.io.WriteToBigQuery(
+                gem.output_table,
+                schema="prompt:STRING,completion:STRING,prompt_tokens:INT,completion_tokens:INT",
                 write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
                 create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
                 method=beam.io.WriteToBigQuery.Method.FILE_LOADS,
