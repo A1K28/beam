@@ -209,7 +209,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gem.model_gcs_path,
-        vllm_kwargs={"gpu_memory_utilization": 0.8, "dtype": "bfloat16", "max_num_seqs": 128},
+        vllm_kwargs={"gpu_memory_utilization": 0.7, "dtype": "bfloat16", "max_num_seqs": 128},
     )
 
     with (test_pipeline or beam.Pipeline(options=opts)) as p:
