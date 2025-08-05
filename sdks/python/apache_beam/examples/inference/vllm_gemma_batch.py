@@ -230,6 +230,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
             )
         )
 
+    return p.result
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     run()
