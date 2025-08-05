@@ -153,8 +153,11 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         sampling_params = SamplingParams()
         request_id = str(uuid.uuid4())
 
+        # Prepare inputs as mapping per prompt
+        inputs = [ {"prompt": text} for text in batch ]
+
         # Create the async generator
-        async_gen = model.generate(batch, sampling_params, request_id)
+        async_gen = model.generate(inputs, sampling_params, request_id)
         outputs: list = []
 
         async def _collect():
