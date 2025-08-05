@@ -138,7 +138,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
             "engine_use_ray": False,
             "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
             "gpu_memory_utilization": self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
-            "dtype": self._vllm_kwargs.get("dtype", "half"),
+            "dtype": self._vllm_kwargs.get("dtype", "float16"),
             "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 128),
         }
         args = AsyncEngineArgs(**engine_args)
@@ -209,7 +209,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gem.model_gcs_path,
-        vllm_kwargs={"gpu_memory_utilization": 0.7, "dtype": "half", "max_num_seqs": 128},
+        vllm_kwargs={"gpu_memory_utilization": 0.7, "dtype": "float16", "max_num_seqs": 128},
     )
 
     with (test_pipeline or beam.Pipeline(options=opts)) as p:
