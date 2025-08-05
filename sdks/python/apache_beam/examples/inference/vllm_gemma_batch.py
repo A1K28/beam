@@ -1,37 +1,43 @@
+#!/usr/bin/env python3
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
 #
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
-""" A sample pipeline using the RunInference API to interface with an LLM using
-vLLM. Takes in a set of prompts or lists of previous messages and produces
-responses using a model of choice.
-
-Requires a GPU runtime with vllm, openai, and apache-beam installed to run
-correctly, and your local vllm_inference.py on PYTHONPATH.
+"""
+Batch pipeline: Gemma-2B-it via vLLM Async Engine → BigQuery, loading model from GCS.
 """
 
-import argparse
+from __future__ import annotations
+
+import os
+import gc
+import sys
 import logging
+import tempfile
+import multiprocessing as mp
+import asyncio
 from collections.abc import Iterable
+import uuid
+import time
 
 import apache_beam as beam
-from apache_beam.ml.inference.base import PredictionResult, RunInference
-from apache_beam.ml.inference.vllm_inference import VLLMChatModelHandler, VLLMCompletionsModelHandler
+from apache_beam.io.filesystems import FileSystems
+from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInference
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
-from apache_beam.runners.runner import PipelineResult
+
+# Force safe multiprocessing start method early (avoid CUDA/fork issues).
+mp.set_start_method("spawn", force=True)
 
 COMPLETION_EXAMPLES = [
     "Hello, my name is",
@@ -41,85 +47,188 @@ COMPLETION_EXAMPLES = [
     "John cena is",
 ]
 
-def parse_known_args(argv):
-    """
-    Parses args for the workflow; everything else (runner, region, etc.)
-    is passed through to Dataflow via PipelineOptions.
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--input',
-        dest='input',
-        required=True,
-        help='GCS URI of newline-delimited text inputs')
-    parser.add_argument(
-        '--model_name',
-        dest='model_name',
-        required=True,
-        help='Name of the vLLM model (e.g. google/gemma-2b-it)')
-    parser.add_argument(
-        '--output',
-        dest='output',
-        required=False,
-        help='Local/text output path (ignored if publishing to BigQuery)')
-    parser.add_argument(
-        '--chat',
-        action='store_true',
-        help='If set, use the chat model handler instead of completions')
-    parser.add_argument(
-        '--chat_template',
-        dest='chat_template',
-        help='GCS path to your chat template (only if --chat)')
-    # all other flags (runner, region, etc.) are consumed by PipelineOptions
-    return parser.parse_known_args(argv)
+# =================================================================
+# 1. Custom Pipeline Options
+# =================================================================
+class GemmaVLLMOptions(PipelineOptions):
+    """Custom pipeline options for the Gemma vLLM batch inference job."""
+    @classmethod
+    def _add_argparse_args(cls, parser):
+        parser.add_argument(
+            "--input",
+            dest="input_file",
+            required=True,
+            help="Input file gs://path containing prompts.",
+        )
+        parser.add_argument(
+            "--output_table",
+            required=True,
+            help="BigQuery table to write to in the form project:dataset.table.",
+        )
+        parser.add_argument(
+            "--model_gcs_path",
+            required=True,
+            help="GCS path to the directory containing model files (e.g., gs://bucket/models/gemma-2b-it/).",
+        )
 
+# =================================================================
+# 2. Post-processing DoFn
+# =================================================================
+class GemmaPostProcessor(beam.DoFn):
+    def process(self, element: PredictionResult):
+        prompt = element.example
+        vllm_output = element.inference
 
-class PostProcessor(beam.DoFn):
-    def process(self, element: PredictionResult) -> Iterable[str]:
-        yield str(element.example) + ": " + str(element.inference)
+        if not vllm_output or not vllm_output.outputs:
+            return
 
+        choice = vllm_output.outputs[0]
+        yield {
+            "prompt": prompt,
+            "completion": choice.text.strip(),
+            "prompt_tokens": len(vllm_output.prompt_token_ids),
+            "completion_tokens": len(choice.token_ids),
+        }
 
-def run(argv=None, save_main_session=True, test_pipeline=None) -> PipelineResult:
-    known_args, pipeline_args = parse_known_args(argv)
-    pipeline_options = PipelineOptions(pipeline_args)
-    pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
+# =================================================================
+# 3. Model Handler for loading from GCS with AsyncLLMEngine (lazy imports)
+# =================================================================
+class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
+    def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
+        logging.info(f"[MODEL HANDLER INIT] Initializing with model_gcs_path: {model_gcs_path}")
+        self._model_gcs_path = model_gcs_path
+        self._vllm_kwargs = vllm_kwargs or {}
+        self._local_path: str | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
-    # choose model handler
-    if known_args.chat:
-        model_handler = VLLMChatModelHandler(
-            model_name=known_args.model_name,
-            chat_template_path=known_args.chat_template)
-    else:
-        model_handler = VLLMCompletionsModelHandler(
-            model_name=known_args.model_name)
+    def batch_elements_kwargs(self):
+        # Use 128 as max_batch_size (or from vllm_kwargs if provided)
+        return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 100)}
 
-    # build pipeline
-    pipeline = test_pipeline if test_pipeline else beam.Pipeline(options=pipeline_options)
+    def check_gpu(self):
+        import torch
+        logging.info("[MODEL HANDLER] Cuda Available: %s", torch.cuda.is_available())
 
-    # examples = pipeline | "ReadInput" >> beam.io.ReadFromText(known_args.input)
-    examples = pipeline | "ReadInput" >> beam.Create(COMPLETION_EXAMPLES)
+    def load_model(self):
+        logging.info("--- [MODEL HANDLER] Starting load_model() ---")
+        start_time = time.time()
 
-    predictions = examples | "RunInference" >> RunInference(model_handler)
-    process_output = predictions | "Process Predictions" >> beam.ParDo(PostProcessor())
+        self.check_gpu()
+        logging.info("[MODEL HANDLER] Importing vLLM libraries...")
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+        from vllm.engine.arg_utils import AsyncEngineArgs
+        from vllm.usage.usage_lib import UsageContext
+        logging.info("[MODEL HANDLER] vLLM libraries imported successfully.")
 
-    opts = pipeline_options.get_all_options()
-    if opts.get('publish_to_big_query'):
-        process_output | "WriteToBQ" >> beam.io.WriteToBigQuery(
-            table=opts['metrics_table'],
-            dataset=opts['metrics_dataset'],
-            schema='example:STRING,inference:STRING',
-            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND)
-    else:
-        process_output | "WriteOutput" >> beam.io.WriteToText(
-            known_args.output,
-            shard_name_template='',
-            append_trailing_newlines=True)
+        if self._local_path is None:
+            local_dir = tempfile.mkdtemp()
+            self._local_path = local_dir
+            gcs_dir = self._model_gcs_path.rstrip('/')
+            pattern = f"{gcs_dir}/*"
+            matches = FileSystems.match([pattern])
+            metas = matches[0].metadata_list if matches else []
+            if not metas:
+                raise RuntimeError(f"No files found matching pattern {pattern}.")
+            for m in metas:
+                src = m.path
+                dst = os.path.join(local_dir, os.path.basename(src))
+                with FileSystems.open(src, 'rb') as fs, open(dst, 'wb') as fd:
+                    fd.write(fs.read())
 
-    result = pipeline.run()
-    result.wait_until_finish()
-    return result
+        engine_args = {
+            "model": self._local_path,
+            "engine_use_ray": False,
+            "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
+            "gpu_memory_utilization": self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
+            "dtype": self._vllm_kwargs.get("dtype", "bfloat16"),
+            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 100),
+        }
+        args = AsyncEngineArgs(**engine_args)
+        logging.info("[MODEL HANDLER] Creating AsyncLLMEngine (this can take minutes)...")
+        engine = AsyncLLMEngine.from_engine_args(args, usage_context=UsageContext.API_SERVER)
 
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
 
-if __name__ == '__main__':
+        elapsed = time.time() - start_time
+        logging.info(f"--- [MODEL HANDLER] load_model() finished in {elapsed:.2f}s ---")
+        return engine
+
+    def run_inference(
+        self,
+        batch: list[str],
+        model: object,
+        inference_args: dict | None = None,
+    ) -> Iterable[PredictionResult]:
+        logging.info(f"--- [MODEL HANDLER] Starting run_inference() for batch size {len(batch)} ---")
+        start_time = time.time()
+
+        if self._loop is None:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+
+        from vllm import SamplingParams
+        sampling_params = SamplingParams(max_tokens=1024)
+
+        # Helper coroutine to consume async generator and return final output
+        async def _get_final_output(prompt: str):
+            req_id = str(uuid.uuid4())
+            gen = model.generate(prompt, sampling_params, req_id)
+            final_op = None
+            async for op in gen:
+                final_op = op
+            return final_op
+
+        async def _run_batch_async():
+            tasks = [_get_final_output(prompt) for prompt in batch]
+            return await asyncio.gather(*tasks, return_exceptions=True)
+
+        outputs = self._loop.run_until_complete(_run_batch_async())
+        results: list[PredictionResult] = []
+        for example, inference in zip(batch, outputs):
+            if isinstance(inference, Exception):
+                logging.error(f"[MODEL HANDLER] Inference exception for prompt '{example}': {inference}")
+                continue
+            results.append(PredictionResult(example, inference))
+
+        elapsed_inf = time.time() - start_time
+        logging.info(f"--- [MODEL HANDLER] run_inference() finished in {elapsed_inf:.2f}s ---")
+        return results
+
+# =================================================================
+# 4. Pipeline Execution
+# =================================================================
+def run(argv=None, save_main_session=True, test_pipeline=None):
+    # Build pipeline options
+    opts = PipelineOptions(argv)
+
+    gem = opts.view_as(GemmaVLLMOptions)
+    opts.view_as(SetupOptions).save_main_session = save_main_session
+
+    logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
+    handler = VLLMModelHandlerGCS(
+        model_gcs_path=gem.model_gcs_path,
+        vllm_kwargs={"gpu_memory_utilization": 0.8, "dtype": "bfloat16", "max_num_seqs": 100},
+    )
+
+    with (test_pipeline or beam.Pipeline(options=opts)) as p:
+        (
+            p
+            # | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+            | "Create examples" >> beam.Create(COMPLETION_EXAMPLES)
+            | "NonEmpty" >> beam.Filter(lambda l: l.strip())
+            | "BreakFusion" >> beam.Reshuffle()
+            | "Infer" >> RunInference(handler)
+            | "Post" >> beam.ParDo(GemmaPostProcessor())
+            | "WriteToBQ" >> beam.io.WriteToBigQuery(
+                gem.output_table,
+                schema="prompt:STRING,completion:STRING,prompt_tokens:INT,completion_tokens:INT",
+                write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+                create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
+                method=beam.io.WriteToBigQuery.Method.FILE_LOADS,
+            )
+        )
+
+if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     run()
