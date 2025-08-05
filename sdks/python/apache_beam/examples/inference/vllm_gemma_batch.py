@@ -62,6 +62,7 @@ class GemmaVLLMOptions(PipelineOptions):
             required=True,
             help="GCS path to the directory containing model files (e.g., gs://bucket/models/gemma-2b-it/).",
         )
+
 # =================================================================
 # 2. Post-processing DoFn
 # =================================================================
@@ -161,18 +162,29 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         from vllm import SamplingParams
         sampling_params = SamplingParams(max_tokens=1024)
 
+        # Helper coroutine to consume async generator and return final output
+        async def _get_final_output(prompt: str):
+            req_id = str(uuid.uuid4())
+            gen = model.generate(prompt, sampling_params, req_id)
+            final_op = None
+            async for op in gen:
+                final_op = op
+            return final_op
+
         async def _run_batch_async():
-            tasks = [model.generate(prompt, sampling_params, str(uuid.uuid4())) for prompt in batch]
+            tasks = [_get_final_output(prompt) for prompt in batch]
             return await asyncio.gather(*tasks, return_exceptions=True)
 
         outputs = self._loop.run_until_complete(_run_batch_async())
         results: list[PredictionResult] = []
         for example, inference in zip(batch, outputs):
             if isinstance(inference, Exception):
+                logging.error(f"[MODEL HANDLER] Inference exception for prompt '{example}': {inference}")
                 continue
             results.append(PredictionResult(example, inference))
 
-        logging.info(f"--- [MODEL HANDLER] run_inference() finished in {time.time() - start_time:.2f}s ---")
+        elapsed_inf = time.time() - start_time
+        logging.info(f"--- [MODEL HANDLER] run_inference() finished in {elapsed_inf:.2f}s ---")
         return results
 
 # =================================================================
