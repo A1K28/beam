@@ -178,9 +178,18 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
+from apache_beam.options.pipeline_options import GoogleCloudOptions
 
 def run(argv=None, save_main_session=True, test_pipeline=None):
+    # Build pipeline options
     opts = PipelineOptions(argv)
+
+    # Disable dynamic source splitting (work rebalancing) to prevent empty-split errors
+    gcloud_opts = opts.view_as(GoogleCloudOptions)
+    gcloud_opts.experiments = gcloud_opts.experiments or []
+    if 'disable_work_rebalancing' not in gcloud_opts.experiments:
+        gcloud_opts.experiments.append('disable_work_rebalancing')
+
     gem = opts.view_as(GemmaVLLMOptions)
     opts.view_as(SetupOptions).save_main_session = save_main_session
 
