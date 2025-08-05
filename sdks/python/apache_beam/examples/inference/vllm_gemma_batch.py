@@ -208,6 +208,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
             p
             | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
             | "NonEmpty" >> beam.Filter(lambda l: l.strip())
+            | "BreakFusion" >> beam.Reshuffle()
             | "Infer" >> RunInference(handler)
             | "Post" >> beam.ParDo(GemmaPostProcessor())
             | "WriteToBQ" >> beam.io.WriteToBigQuery(
