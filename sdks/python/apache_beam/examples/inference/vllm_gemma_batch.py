@@ -1,5 +1,21 @@
+#!/usr/bin/env python3
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-Batch pipeline: Gemma-2B-it via vLLM → BigQuery, loading model from GCS.
+Batch pipeline: Gemma-2B-it via vLLM Async Engine → BigQuery, loading model from GCS.
 """
 
 from __future__ import annotations
@@ -7,16 +23,21 @@ from __future__ import annotations
 import os
 import gc
 import sys
-import torch
 import logging
 import tempfile
 import multiprocessing as mp
+import asyncio
 from collections.abc import Iterable
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInference
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+
+# vLLM async engine imports
+from vllm.engine.async_llm_engine import AsyncLLMEngine
+from vllm.engine.arg_utils import AsyncEngineArgs
+from vllm.usage.usage_lib import UsageContext
 
 # Force safe multiprocessing start method early (avoid CUDA/fork issues).
 mp.set_start_method("spawn", force=True)
@@ -62,96 +83,68 @@ class GemmaPostProcessor(beam.DoFn):
         }
 
 # =================================================================
-# 3. Model Handler for loading from GCS
+# 3. Model Handler for loading from GCS with AsyncLLMEngine
 # =================================================================
 class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
-    """
-    A ModelHandler that downloads model artifacts from Google Cloud Storage
-    and loads them into a vLLM engine.
-    """
     def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
         self._model_gcs_path = model_gcs_path
         self._vllm_kwargs = vllm_kwargs or {}
-        self._local_path = None  # cached after download
+        self._local_path: str | None = None  # cached after download
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     def batch_elements_kwargs(self):
-        # FIX 1: Enable batching by setting a max batch size.
-        # This tells RunInference to group elements together.
-        return {"max_batch_size": 16}
+        # Align max_batch_size with max_num_seqs
+        return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 16)}
 
     def load_model(self):
-        from vllm import LLM
-        import vllm, torch
-
-        logging.info(f"vLLM version: {vllm.__version__}, torch version: {torch.__version__}, python: {sys.version}")
-
-        # Ensure engine has more time before being considered hung.
-        os.environ.setdefault("VLLM_ENGINE_ITERATION_TIMEOUT_S", "180")
-        os.environ.setdefault("VLLM_DEBUG", "1")  # turn on debug for root cause visibility
-
+        # Download model artifacts from GCS once per worker
         if self._local_path is None:
             local_model_dir = tempfile.mkdtemp()
             self._local_path = local_model_dir
-            gcs_dir_path = self._model_gcs_path.rstrip('/')
-            gcs_path_pattern = f"{gcs_dir_path}/*"
+            gcs_dir = self._model_gcs_path.rstrip('/')
+            pattern = f"{gcs_dir}/*"
 
-            logging.info(f"Searching for model files in GCS with pattern: {gcs_path_pattern}")
+            match_results = FileSystems.match([pattern])
+            metadata_list = match_results[0].metadata_list if match_results else []
+            if not metadata_list:
+                raise RuntimeError(f"No files found matching pattern {pattern}.")
 
-            match_results = FileSystems.match([gcs_path_pattern])
-            if not match_results or not match_results[0].metadata_list:
-                raise RuntimeError(f"No files found matching pattern {gcs_path_pattern}.")
+            for metadata in metadata_list:
+                src = metadata.path
+                dst = os.path.join(local_model_dir, os.path.basename(src))
+                with FileSystems.open(src, 'rb') as f_src, open(dst, 'wb') as f_dst:
+                    f_dst.write(f_src.read())
 
-            file_metadata_list = match_results[0].metadata_list
-            logging.info(f"Found {len(file_metadata_list)} model files to download.")
+        # Build engine arguments from kwargs
+        engine_args = AsyncEngineArgs(
+            model=self._local_path,
+            engine_use_ray=False,
+            enforce_eager=self._vllm_kwargs.get("enforce_eager", False),
+            gpu_memory_utilization=self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
+            dtype=self._vllm_kwargs.get("dtype", "bfloat16"),
+            max_num_seqs=self._vllm_kwargs.get("max_num_seqs", 16),
+        )
+        engine = AsyncLLMEngine.from_engine_args(
+            engine_args,
+            usage_context=UsageContext.API_SERVER,
+        )
 
-            for metadata in file_metadata_list:
-                source_path = metadata.path
-                destination_filename = os.path.basename(source_path)
-                destination_path = os.path.join(local_model_dir, destination_filename)
-                logging.info(f"Copying {source_path} to {destination_path}...")
-                with FileSystems.open(source_path, 'rb') as f_source:
-                    with open(destination_path, 'wb') as f_dest:
-                        f_dest.write(f_source.read())
-
-            logging.info(f"Model download complete. Contents of {local_model_dir}: {os.listdir(local_model_dir)}")
-
-        effective_kwargs = dict(self._vllm_kwargs)
-        effective_kwargs.setdefault("gpu_memory_utilization", 0.80)
-        effective_kwargs.setdefault("dtype", "bfloat16")
-
-        return LLM(model=self._local_path, **effective_kwargs)
+        # Create and store a dedicated event loop for async execution
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        return engine
 
     def run_inference(
-        self, batch: list[str], model: object, inference_args: dict | None = None
+        self,
+        batch: list[str],
+        model: AsyncLLMEngine,
+        inference_args: dict | None = None,
     ) -> Iterable[PredictionResult]:
-        # Keep the recovery logic as a safety net for other potential errors.
-        logging.info(f"Running inference on batch of size {len(batch)}")
-        try:
-            results = model.generate(batch, **(inference_args or {}))
-        except Exception as e:
-            # Catch any unexpected errors from vLLM during generation
-            msg = str(e)
-            logging.warning(
-                "Detected vLLM internal error during generate. "
-                "Attempting to recover by reloading the model. Exception: %s", msg
-            )
-            try:
-                # Explicitly release the old model's resources before loading a new one.
-                logging.info("Releasing resources from the failed model instance.")
-                del model
-                gc.collect()
-                torch.cuda.empty_cache()
-
-                # Now, attempt to load a fresh model instance.
-                logging.info("Loading a new model instance for retry.")
-                new_model = self.load_model()
-                results = new_model.generate(batch, **(inference_args or {}))
-                model = new_model  # Assign the new, working model for subsequent calls
-            except Exception as e2:
-                logging.error("Model recovery and retry also failed: %s", e2)
-                raise
+        logging.info(f"Running async inference on batch of size {len(batch)}")
+        # Schedule the async generate() call on our event loop
+        coroutine = model.generate(batch, **(inference_args or {}))
+        results = self._loop.run_until_complete(coroutine)
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
-
 
 # =================================================================
 # 4. Pipeline Execution
@@ -166,8 +159,6 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
         vllm_kwargs={
             "gpu_memory_utilization": 0.8,
             "dtype": "bfloat16",
-            # FIX 2: Constrain the vLLM engine to match the batch size.
-            # This prevents its internal scheduler from being overwhelmed.
             "max_num_seqs": 16,
         },
     )
