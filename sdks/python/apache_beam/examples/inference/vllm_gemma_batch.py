@@ -34,11 +34,6 @@ from apache_beam.io.filesystems import FileSystems
 from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInference
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 
-# vLLM async engine imports
-from vllm.engine.async_llm_engine import AsyncLLMEngine
-from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.usage.usage_lib import UsageContext
-
 # Force safe multiprocessing start method early (avoid CUDA/fork issues).
 mp.set_start_method("spawn", force=True)
 
@@ -83,7 +78,7 @@ class GemmaPostProcessor(beam.DoFn):
         }
 
 # =================================================================
-# 3. Model Handler for loading from GCS with AsyncLLMEngine
+# 3. Model Handler for loading from GCS with AsyncLLMEngine (lazy imports)
 # =================================================================
 class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
@@ -97,6 +92,11 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 16)}
 
     def load_model(self):
+        # Local imports to avoid requiring vllm on GitHub runners
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+        from vllm.engine.arg_utils import AsyncEngineArgs
+        from vllm.usage.usage_lib import UsageContext
+
         # Download model artifacts from GCS once per worker
         if self._local_path is None:
             local_model_dir = tempfile.mkdtemp()
@@ -137,11 +137,12 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def run_inference(
         self,
         batch: list[str],
-        model: AsyncLLMEngine,
+        model: object,
         inference_args: dict | None = None,
     ) -> Iterable[PredictionResult]:
         logging.info(f"Running async inference on batch of size {len(batch)}")
         # Schedule the async generate() call on our event loop
+        # model is typed as object to avoid top-level vllm imports
         coroutine = model.generate(batch, **(inference_args or {}))
         results = self._loop.run_until_complete(coroutine)
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
