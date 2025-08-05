@@ -1,4 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) ...
 """
 Batch pipeline: Gemma-2B-it via vLLM → BigQuery, loading model from GCS.
 """
@@ -76,7 +75,9 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         self._local_path = None  # cached after download
 
     def batch_elements_kwargs(self):
-        return {"max_batch_size": 1}
+        # FIX 1: Enable batching by setting a max batch size.
+        # This tells RunInference to group elements together.
+        return {"max_batch_size": 16}
 
     def load_model(self):
         from vllm import LLM
@@ -114,9 +115,8 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 
             logging.info(f"Model download complete. Contents of {local_model_dir}: {os.listdir(local_model_dir)}")
 
-        # Leave some headroom (e.g., 0.85 instead of 0.9)
         effective_kwargs = dict(self._vllm_kwargs)
-        effective_kwargs.setdefault("gpu_memory_utilization", 0.85)
+        effective_kwargs.setdefault("gpu_memory_utilization", 0.80)
         effective_kwargs.setdefault("dtype", "bfloat16")
 
         return LLM(model=self._local_path, **effective_kwargs)
@@ -124,35 +124,34 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def run_inference(
         self, batch: list[str], model: object, inference_args: dict | None = None
     ) -> Iterable[PredictionResult]:
+        # Keep the recovery logic as a safety net for other potential errors.
         logging.info(f"Running inference on batch of size {len(batch)}")
         try:
             results = model.generate(batch, **(inference_args or {}))
         except Exception as e:
+            # Catch any unexpected errors from vLLM during generation
             msg = str(e)
-            if isinstance(e, KeyError):
-                logging.warning(
-                    "Detected vLLM internal KeyError during generate. "
-                    "Attempting to recover by reloading the model. Exception: %s", msg
-                )
-                try:
-                    # Explicitly release the old model's resources before loading a new one.
-                    logging.info("Releasing resources from the failed model instance.")
-                    del model
-                    gc.collect()
-                    torch.cuda.empty_cache()
+            logging.warning(
+                "Detected vLLM internal error during generate. "
+                "Attempting to recover by reloading the model. Exception: %s", msg
+            )
+            try:
+                # Explicitly release the old model's resources before loading a new one.
+                logging.info("Releasing resources from the failed model instance.")
+                del model
+                gc.collect()
+                torch.cuda.empty_cache()
 
-                    # Now, attempt to load a fresh model instance.
-                    logging.info("Loading a new model instance for retry.")
-                    new_model = self.load_model()
-                    results = new_model.generate(batch, **(inference_args or {}))
-                    model = new_model  # Assign the new, working model for subsequent calls
-                except Exception as e2:
-                    logging.error("Model recovery and retry also failed: %s", e2)
-                    raise
-            else:
+                # Now, attempt to load a fresh model instance.
+                logging.info("Loading a new model instance for retry.")
+                new_model = self.load_model()
+                results = new_model.generate(batch, **(inference_args or {}))
+                model = new_model  # Assign the new, working model for subsequent calls
+            except Exception as e2:
+                logging.error("Model recovery and retry also failed: %s", e2)
                 raise
         return [PredictionResult(example, result) for example, result in zip(batch, results)]
-    
+
 
 # =================================================================
 # 4. Pipeline Execution
@@ -166,7 +165,10 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
         model_gcs_path=gemma_options.model_gcs_path,
         vllm_kwargs={
             "gpu_memory_utilization": 0.8,
-            "dtype": "bfloat16"
+            "dtype": "bfloat16",
+            # FIX 2: Constrain the vLLM engine to match the batch size.
+            # This prevents its internal scheduler from being overwhelmed.
+            "max_num_seqs": 16,
         },
     )
 
