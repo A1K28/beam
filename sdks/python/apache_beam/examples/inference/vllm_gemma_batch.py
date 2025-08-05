@@ -159,7 +159,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
             asyncio.set_event_loop(self._loop)
 
         from vllm import SamplingParams
-        sampling_params = SamplingParams(max_tokens=1024, max_num_seqs=self._vllm_kwargs.get("max_num_seqs", 128))
+        sampling_params = SamplingParams(max_tokens=1024)
 
         async def _run_batch_async():
             tasks = [model.generate(prompt, sampling_params, str(uuid.uuid4())) for prompt in batch]
