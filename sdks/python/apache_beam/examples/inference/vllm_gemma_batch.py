@@ -1,19 +1,4 @@
-#!/usr/bin/env python3
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+
 """
 Batch pipeline: Gemma-2B-it via vLLM Async Engine → BigQuery, loading model from GCS.
 """
@@ -38,17 +23,7 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 # Force safe multiprocessing start method early (avoid CUDA/fork issues).
 mp.set_start_method("spawn", force=True)
 
-COMPLETION_EXAMPLES = [
-    "Hello, my name is",
-    "The president of the United States is",
-    "The capital of France is",
-    "The future of AI is",
-    "John cena is",
-]
 
-# =================================================================
-# 1. Custom Pipeline Options
-# =================================================================
 class GemmaVLLMOptions(PipelineOptions):
     """Custom pipeline options for the Gemma vLLM batch inference job."""
     @classmethod
@@ -70,9 +45,7 @@ class GemmaVLLMOptions(PipelineOptions):
             help="GCS path to the directory containing model files (e.g., gs://bucket/models/gemma-2b-it/).",
         )
 
-# =================================================================
-# 2. Post-processing DoFn
-# =================================================================
+
 class GemmaPostProcessor(beam.DoFn):
     def process(self, element: PredictionResult):
         # We unpack it to get the original prompt. We don't need the key here.
@@ -91,9 +64,7 @@ class GemmaPostProcessor(beam.DoFn):
             "completion_tokens": len(choice.token_ids),
         }
 
-# =================================================================
-# 3. Model Handler for loading from GCS with AsyncLLMEngine (lazy imports)
-# =================================================================
+
 class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
         logging.info(f"[MODEL HANDLER INIT] Initializing with model_gcs_path: {model_gcs_path}")
@@ -195,9 +166,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         logging.info(f"--- [MODEL HANDLER] run_inference() finished in {elapsed_inf:.2f}s ---")
         return results
 
-# =================================================================
-# 4. Pipeline Execution
-# =================================================================
+
 def run(argv=None, save_main_session=True, test_pipeline=None):
     # Build pipeline options
     opts = PipelineOptions(argv)
@@ -218,9 +187,6 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
             | "NonEmpty" >> beam.Filter(lambda l: l.strip())
             # Using 25 keys as an example, matching the max_num_workers.
             | "AddRandomKey" >> beam.Map(lambda x: (random.randint(0, 24), x))
-            # The explicit Reshuffle is now redundant and inefficient. The GroupByKey
-            # within RunInference (triggered by the keys we just added) will handle
-            # the shuffling and fusion breaking automatically.
             | "Infer" >> RunInference(handler)
             | "Post" >> beam.ParDo(GemmaPostProcessor())
             | "WriteToBQ" >> beam.io.WriteToBigQuery(
