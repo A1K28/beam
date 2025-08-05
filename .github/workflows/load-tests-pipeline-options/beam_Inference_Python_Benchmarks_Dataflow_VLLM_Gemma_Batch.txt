@@ -5,10 +5,11 @@
 --input=gs://apache-beam-ml/testing/inputs/sentences_5k.txt
 --model_name=google/gemma-2b-it
 --machine_type=a2-highgpu-1g
---disk_size_gb=200
---num_workers=1
+--disk_size_gb=100
 --input_options={}
---autoscaling_algorithm=NONE
+--num_workers=4
+--max_num_workers=25
+--autoscaling_algorithm=THROUGHPUT_BASED
 --publish_to_big_query=true
 --metrics_dataset=beam_run_inference
 --metrics_table=gemma_vllm_batch
