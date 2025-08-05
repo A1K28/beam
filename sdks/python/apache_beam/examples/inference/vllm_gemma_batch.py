@@ -95,7 +95,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 
     def batch_elements_kwargs(self):
         # Use 128 as max_batch_size (or from vllm_kwargs if provided)
-        return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 128)}
+        return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 100)}
 
     def check_gpu(self):
         import torch
@@ -133,7 +133,7 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
             "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
             "gpu_memory_utilization": self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
             "dtype": self._vllm_kwargs.get("dtype", "bfloat16"),
-            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 128),
+            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 100),
         }
         args = AsyncEngineArgs(**engine_args)
         logging.info("[MODEL HANDLER] Creating AsyncLLMEngine (this can take minutes)...")
@@ -200,7 +200,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gem.model_gcs_path,
-        vllm_kwargs={"gpu_memory_utilization": 0.8, "dtype": "bfloat16", "max_num_seqs": 128},
+        vllm_kwargs={"gpu_memory_utilization": 0.8, "dtype": "bfloat16", "max_num_seqs": 100},
     )
 
     with (test_pipeline or beam.Pipeline(options=opts)) as p:
