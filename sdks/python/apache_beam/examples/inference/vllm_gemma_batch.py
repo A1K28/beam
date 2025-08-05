@@ -28,6 +28,7 @@ import asyncio
 from collections.abc import Iterable
 import uuid
 import time
+import random
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -74,7 +75,9 @@ class GemmaVLLMOptions(PipelineOptions):
 # =================================================================
 class GemmaPostProcessor(beam.DoFn):
     def process(self, element: PredictionResult):
-        prompt = element.example
+        # We unpack it to get the original prompt. We don't need the key here.
+        _, prompt = element.example
+
         vllm_output = element.inference
 
         if not vllm_output or not vllm_output.outputs:
@@ -168,7 +171,6 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         from vllm import SamplingParams
         sampling_params = SamplingParams(max_tokens=1024)
 
-        # Helper coroutine to consume async generator and return final output
         async def _get_final_output(prompt: str):
             req_id = str(uuid.uuid4())
             gen = model.generate(prompt, sampling_params, req_id)
@@ -196,9 +198,6 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
 # =================================================================
 # 4. Pipeline Execution
 # =================================================================
-# =================================================================
-# 4. Pipeline Execution
-# =================================================================
 def run(argv=None, save_main_session=True, test_pipeline=None):
     # Build pipeline options
     opts = PipelineOptions(argv)
@@ -216,9 +215,12 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
         (
             p
             | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
-            # | "Create examples" >> beam.Create(COMPLETION_EXAMPLES)
             | "NonEmpty" >> beam.Filter(lambda l: l.strip())
-            | "BreakFusion" >> beam.Reshuffle()
+            # Using 25 keys as an example, matching the max_num_workers.
+            | "AddRandomKey" >> beam.Map(lambda x: (random.randint(0, 24), x))
+            # The explicit Reshuffle is now redundant and inefficient. The GroupByKey
+            # within RunInference (triggered by the keys we just added) will handle
+            # the shuffling and fusion breaking automatically.
             | "Infer" >> RunInference(handler)
             | "Post" >> beam.ParDo(GemmaPostProcessor())
             | "WriteToBQ" >> beam.io.WriteToBigQuery(
