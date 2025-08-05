@@ -130,30 +130,47 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         model: object,
         inference_args: dict | None = None,
     ) -> Iterable[PredictionResult]:
+        # Ensure event loop exists and is set for the current thread
         if self._loop is None:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
 
+        # Lazy import to ensure vllm is only required on Dataflow workers
         from vllm import SamplingParams
 
-        logging.info(f"Async inferencing batch size {len(batch)}")
-        sampling = SamplingParams()
-        rid = str(uuid.uuid4())
+        logging.info(f"Running async inference on batch of size {len(batch)}")
+        sampling_params = SamplingParams(
+            # Add any specific sampling params you need, e.g., max_tokens
+            max_tokens=1024,
+        )
 
-        inputs = {"prompt": batch}
-        async_gen = model.generate(inputs, sampling, rid)
-        collected: list = []
+        # This async function will consume the async generator from vLLM
+        # for a single prompt and return the *final* output.
+        async def _get_final_output(prompt: str):
+            request_id = str(uuid.uuid4())
+            results_generator = model.generate(prompt, sampling_params, request_id)
+            final_output = None
+            async for request_output in results_generator:
+                final_output = request_output
+            return final_output
 
-        async def _drain():
-            async for out in async_gen:
-                collected.append(out)
-        self._loop.run_until_complete(_drain())
+        # This is the main async function to run all tasks concurrently.
+        async def _run_batch_async():
+            # Create a list of concurrent tasks, one for each prompt in the batch.
+            tasks = [_get_final_output(prompt) for prompt in batch]
+            # Wait for all tasks to complete.
+            all_outputs = await asyncio.gather(*tasks)
+            return all_outputs
 
-        results: list[PredictionResult] = []
-        for p in batch:
-            match = next(o for o in reversed(collected) if o.prompt == p)
-            results.append(PredictionResult(p, match))
-        return results
+        # Run the main async function until it completes.
+        # The result will be a list of final outputs, in the same order as the input batch.
+        outputs = self._loop.run_until_complete(_run_batch_async())
+
+        # Zipping is a robust way to match inputs and outputs because asyncio.gather preserves order.
+        return [
+            PredictionResult(example, inference)
+            for example, inference in zip(batch, outputs)
+        ]
 
 # =================================================================
 # 4. Pipeline Execution
