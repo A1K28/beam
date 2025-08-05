@@ -28,6 +28,7 @@ import tempfile
 import multiprocessing as mp
 import asyncio
 from collections.abc import Iterable
+import uuid
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -140,12 +141,34 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         model: object,
         inference_args: dict | None = None,
     ) -> Iterable[PredictionResult]:
+        # Lazy import to ensure vllm is only required on Dataflow workers
+        from vllm import SamplingParams
+
         logging.info(f"Running async inference on batch of size {len(batch)}")
-        # Schedule the async generate() call on our event loop
-        # model is typed as object to avoid top-level vllm imports
-        coroutine = model.generate(batch, **(inference_args or {}))
-        results = self._loop.run_until_complete(coroutine)
-        return [PredictionResult(example, result) for example, result in zip(batch, results)]
+        # Default sampling parameters (reads from model's generation_config.json)
+        sampling_params = SamplingParams()
+        # Unique ID for this batch request
+        request_id = str(uuid.uuid4())
+
+        # Create the async generator
+        async_gen = model.generate(batch, sampling_params, request_id)
+        outputs: list = []
+
+        # Collect all streaming outputs
+        async def _collect():
+            async for output in async_gen:
+                outputs.append(output)
+
+        self._loop.run_until_complete(_collect())
+
+        # For each prompt in the batch, pick its final output
+        results: list[PredictionResult] = []
+        for prompt in batch:
+            # Find the last output matching this prompt
+            last_output = next(o for o in reversed(outputs) if o.prompt == prompt)
+            results.append(PredictionResult(prompt, last_output))
+
+        return results
 
 # =================================================================
 # 4. Pipeline Execution
