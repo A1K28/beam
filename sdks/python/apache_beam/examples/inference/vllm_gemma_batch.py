@@ -39,6 +39,14 @@ from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 # Force safe multiprocessing start method early (avoid CUDA/fork issues).
 mp.set_start_method("spawn", force=True)
 
+COMPLETION_EXAMPLES = [
+    "Hello, my name is",
+    "The president of the United States is",
+    "The capital of France is",
+    "The future of AI is",
+    "John cena is",
+]
+
 # =================================================================
 # 1. Custom Pipeline Options
 # =================================================================
@@ -206,7 +214,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     with (test_pipeline or beam.Pipeline(options=opts)) as p:
         (
             p
-            | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+            # | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+            | "Create examples" >> beam.Create(COMPLETION_EXAMPLES)
             | "NonEmpty" >> beam.Filter(lambda l: l.strip())
             | "BreakFusion" >> beam.Reshuffle()
             | "Infer" >> RunInference(handler)
