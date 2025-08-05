@@ -29,6 +29,7 @@ import multiprocessing as mp
 import asyncio
 from collections.abc import Iterable
 import uuid
+import time
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -67,8 +68,14 @@ class GemmaVLLMOptions(PipelineOptions):
 # =================================================================
 class GemmaPostProcessor(beam.DoFn):
     def process(self, element: PredictionResult):
+        # LOGGING: Added to see the data structure post-inference
+        logging.info(f"[POST-PROCESSOR] Received element: {element.example}")
         prompt = element.example
         vllm_output = element.inference
+
+        if not vllm_output or not vllm_output.outputs:
+            logging.error(f"[POST-PROCESSOR] Inference for prompt '{prompt}' returned empty or invalid output.")
+            return
 
         choice = vllm_output.outputs[0]
         yield {
@@ -83,6 +90,8 @@ class GemmaPostProcessor(beam.DoFn):
 # =================================================================
 class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     def __init__(self, model_gcs_path: str, vllm_kwargs: dict | None = None):
+        # LOGGING: Log constructor arguments
+        logging.info(f"[MODEL HANDLER INIT] Initializing with model_gcs_path: {model_gcs_path}")
         self._model_gcs_path = model_gcs_path
         self._vllm_kwargs = vllm_kwargs or {}
         self._local_path: str | None = None
@@ -92,36 +101,76 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         return {"max_batch_size": self._vllm_kwargs.get("max_num_seqs", 16)}
 
     def load_model(self):
+        # LOGGING: Announce start of the critical model loading process
+        logging.info("--- [MODEL HANDLER] Starting load_model() ---")
+        start_time = time.time()
+
+        # LOGGING: Lazy import vLLM
+        logging.info("[MODEL HANDLER] Importing vLLM libraries...")
         from vllm.engine.async_llm_engine import AsyncLLMEngine
         from vllm.engine.arg_utils import AsyncEngineArgs
         from vllm.usage.usage_lib import UsageContext
+        logging.info("[MODEL HANDLER] vLLM libraries imported successfully.")
 
         if self._local_path is None:
+            # LOGGING: Detail the GCS download process
+            logging.info("[MODEL HANDLER] No local model path cached. Starting GCS download.")
             local_dir = tempfile.mkdtemp()
             self._local_path = local_dir
+            logging.info(f"[MODEL HANDLER] Created temporary local directory: {self._local_path}")
+
             gcs_dir = self._model_gcs_path.rstrip('/')
-            matches = FileSystems.match([f"{gcs_dir}/*"])
+            pattern = f"{gcs_dir}/*"
+            logging.info(f"[MODEL HANDLER] Matching GCS files with pattern: {pattern}")
+
+            matches = FileSystems.match([pattern])
             metas = matches[0].metadata_list if matches else []
+
+            logging.info(f"[MODEL HANDLER] Found {len(metas)} model files to download.")
             if not metas:
-                raise RuntimeError(f"No files found for {gcs_dir}")
-            for m in metas:
+                logging.error(f"CRITICAL: No files found matching GCS pattern {pattern}. This is a fatal error.")
+                raise RuntimeError(f"No files found matching pattern {pattern}.")
+
+            for i, m in enumerate(metas):
                 src = m.path
                 dst = os.path.join(local_dir, os.path.basename(src))
-                with FileSystems.open(src, 'rb') as fs, open(dst, 'wb') as fd:
-                    fd.write(fs.read())
+                logging.info(f"[MODEL HANDLER] Downloading file {i+1}/{len(metas)}: {src} to {dst}")
+                try:
+                    with FileSystems.open(src, 'rb') as fs, open(dst, 'wb') as fd:
+                        fd.write(fs.read())
+                except Exception as e:
+                    logging.error(f"CRITICAL: Failed to download file {src}. Error: {e}", exc_info=True)
+                    raise e
+            logging.info("[MODEL HANDLER] All model files downloaded successfully.")
 
-        args = AsyncEngineArgs(
-            model=self._local_path,
-            engine_use_ray=False,
-            enforce_eager=self._vllm_kwargs.get("enforce_eager", False),
-            gpu_memory_utilization=self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
-            dtype=self._vllm_kwargs.get("dtype", "bfloat16"),
-            max_num_seqs=self._vllm_kwargs.get("max_num_seqs", 16),
-        )
-        engine = AsyncLLMEngine.from_engine_args(args, usage_context=UsageContext.API_SERVER)
+        # LOGGING: Detail the vLLM engine arguments
+        logging.info("[MODEL HANDLER] Building AsyncEngineArgs...")
+        engine_args_dict = {
+            "model": self._local_path,
+            "engine_use_ray": False,
+            "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
+            "gpu_memory_utilization": self._vllm_kwargs.get("gpu_memory_utilization", 0.8),
+            "dtype": self._vllm_kwargs.get("dtype", "bfloat16"),
+            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 16),
+        }
+        logging.info(f"[MODEL HANDLER] vLLM Engine Args: {engine_args_dict}")
+        args = AsyncEngineArgs(**engine_args_dict)
 
+        # LOGGING: Announce engine creation (the slowest part)
+        logging.info("[MODEL HANDLER] Creating AsyncLLMEngine from args. THIS MAY TAKE SEVERAL MINUTES...")
+        try:
+            engine = AsyncLLMEngine.from_engine_args(args, usage_context=UsageContext.API_SERVER)
+            logging.info("[MODEL HANDLER] AsyncLLMEngine created successfully.")
+        except Exception as e:
+            logging.error(f"CRITICAL: Failed to create AsyncLLMEngine. Error: {e}", exc_info=True)
+            raise e
+
+        logging.info("[MODEL HANDLER] Creating new asyncio event loop.")
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
+        
+        end_time = time.time()
+        logging.info(f"--- [MODEL HANDLER] load_model() finished successfully in {end_time - start_time:.2f} seconds. ---")
         return engine
 
     def run_inference(
@@ -130,22 +179,18 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         model: object,
         inference_args: dict | None = None,
     ) -> Iterable[PredictionResult]:
-        # Ensure event loop exists and is set for the current thread
+        logging.info(f"--- [MODEL HANDLER] Starting run_inference() for batch of size {len(batch)} ---")
+        start_time = time.time()
+        
         if self._loop is None:
+            logging.warning("[MODEL HANDLER] Event loop was None. Creating a new one for run_inference.")
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
 
-        # Lazy import to ensure vllm is only required on Dataflow workers
         from vllm import SamplingParams
+        logging.info("[MODEL HANDLER] Imported SamplingParams.")
+        sampling_params = SamplingParams(max_tokens=1024)
 
-        logging.info(f"Running async inference on batch of size {len(batch)}")
-        sampling_params = SamplingParams(
-            # Add any specific sampling params you need, e.g., max_tokens
-            max_tokens=1024,
-        )
-
-        # This async function will consume the async generator from vLLM
-        # for a single prompt and return the *final* output.
         async def _get_final_output(prompt: str):
             request_id = str(uuid.uuid4())
             results_generator = model.generate(prompt, sampling_params, request_id)
@@ -154,23 +199,27 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
                 final_output = request_output
             return final_output
 
-        # This is the main async function to run all tasks concurrently.
         async def _run_batch_async():
-            # Create a list of concurrent tasks, one for each prompt in the batch.
+            logging.info(f"[MODEL HANDLER] Creating {len(batch)} concurrent inference tasks.")
             tasks = [_get_final_output(prompt) for prompt in batch]
-            # Wait for all tasks to complete.
-            all_outputs = await asyncio.gather(*tasks)
+            logging.info("[MODEL HANDLER] Gathering results from tasks...")
+            all_outputs = await asyncio.gather(*tasks, return_exceptions=True)
+            logging.info("[MODEL HANDLER] All inference tasks completed.")
             return all_outputs
 
-        # Run the main async function until it completes.
-        # The result will be a list of final outputs, in the same order as the input batch.
         outputs = self._loop.run_until_complete(_run_batch_async())
-
-        # Zipping is a robust way to match inputs and outputs because asyncio.gather preserves order.
-        return [
-            PredictionResult(example, inference)
-            for example, inference in zip(batch, outputs)
-        ]
+        
+        results = []
+        for example, inference in zip(batch, outputs):
+            if isinstance(inference, Exception):
+                logging.error(f"[MODEL HANDLER] Inference for prompt '{example}' failed with exception: {inference}", exc_info=inference)
+                # Optionally yield a failure record or just skip
+                continue
+            results.append(PredictionResult(example, inference))
+        
+        end_time = time.time()
+        logging.info(f"--- [MODEL HANDLER] run_inference() finished in {end_time - start_time:.2f} seconds. Yielding {len(results)} results. ---")
+        return results
 
 # =================================================================
 # 4. Pipeline Execution
@@ -179,6 +228,10 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     opts = PipelineOptions(argv)
     gem = opts.view_as(GemmaVLLMOptions)
     opts.view_as(SetupOptions).save_main_session = save_main_session
+
+    logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
+    logging.info(f"Pipeline reading from: {gem.input_file}")
+    logging.info(f"Pipeline writing to: {gem.output_table}")
 
     handler = VLLMModelHandlerGCS(
         model_gcs_path=gem.model_gcs_path,
@@ -201,5 +254,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
         )
 
 if __name__ == "__main__":
+    # This sets the root logger, which is what Beam workers will use.
     logging.getLogger().setLevel(logging.INFO)
+    logging.info("--- Starting main execution ---")
     run()
