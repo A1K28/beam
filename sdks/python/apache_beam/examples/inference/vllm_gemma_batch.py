@@ -29,11 +29,17 @@ from collections.abc import Iterable
 
 import apache_beam as beam
 from apache_beam.ml.inference.base import PredictionResult, RunInference
-# Use your local vllm_inference implementation
-from vllm_inference import OpenAIChatMessage, VLLMChatModelHandler, VLLMCompletionsModelHandler
+from apache_beam.ml.inference.vllm_inference import VLLMChatModelHandler, VLLMCompletionsModelHandler
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.runners.runner import PipelineResult
 
+COMPLETION_EXAMPLES = [
+    "Hello, my name is",
+    "The president of the United States is",
+    "The capital of France is",
+    "The future of AI is",
+    "John cena is",
+]
 
 def parse_known_args(argv):
     """
@@ -90,7 +96,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None) -> PipelineResult
     # build pipeline
     pipeline = test_pipeline if test_pipeline else beam.Pipeline(options=pipeline_options)
 
-    examples = pipeline | "ReadInput" >> beam.io.ReadFromText(known_args.input)
+    # examples = pipeline | "ReadInput" >> beam.io.ReadFromText(known_args.input)
+    examples = pipeline | "ReadInput" >> beam.Create(COMPLETION_EXAMPLES)
 
     predictions = examples | "RunInference" >> RunInference(model_handler)
     process_output = predictions | "Process Predictions" >> beam.ParDo(PostProcessor())
