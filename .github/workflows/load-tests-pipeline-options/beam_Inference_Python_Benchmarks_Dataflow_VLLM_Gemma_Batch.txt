@@ -3,7 +3,6 @@
 --temp_location=gs://temp-storage-for-perf-tests/loadtests
 --staging_location=gs://temp-storage-for-perf-tests/loadtests
 --input=gs://apache-beam-ml/testing/inputs/sentences_50k.txt
---model_name=google/gemma-2b-it
 --machine_type=g2-standard-8
 --worker_zone=us-central1-b
 --disk_size_gb=100
@@ -21,6 +20,6 @@
 --sdk_harness_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.2.0_NVIDIA
 --sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.2.0_NVIDIA
 --sdk_location=container
---dataflow_service_options="worker_accelerator=type:nvidia-l4;count:1;install-nvidia-driver:true"
+--dataflow_service_options="worker_accelerator=type:nvidia-l4;count:1;install-nvidia-driver:5xx"
 --host_maintenance_policy=TERMINATE
 --experiments=use_runner_v2,enable_custom_shm_size_4096
