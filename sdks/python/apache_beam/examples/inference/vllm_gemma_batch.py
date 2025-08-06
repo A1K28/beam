@@ -15,7 +15,7 @@ import random
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInference
-from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions, WorkerOptions, StandardOptions
+from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.metrics import Metrics
 
 COMPLETION_EXAMPLES = [
@@ -258,13 +258,6 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
 
   gem = opts.view_as(GemmaVLLMOptions)
   opts.view_as(SetupOptions).save_main_session = False
-
-  worker_opts = opts.view_as(WorkerOptions)
-  worker_opts.environment_type = 'DOCKER'
-
-  worker_opts.worker_harness_container_image = ('us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.2.0_NVIDIA')
-
-  opts.view_as(StandardOptions).runner = 'DataflowRunner'
 
   logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
   handler = VLLMModelHandlerGCS(
