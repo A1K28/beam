@@ -257,7 +257,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
   opts = PipelineOptions(argv)
 
   gem = opts.view_as(GemmaVLLMOptions)
-  opts.view_as(SetupOptions).save_main_session = save_main_session
+  opts.view_as(SetupOptions).save_main_session = False
 
   logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
   handler = VLLMModelHandlerGCS(
