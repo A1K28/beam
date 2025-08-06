@@ -5,7 +5,7 @@
 --input=gs://apache-beam-ml/testing/inputs/sentences_50k.txt
 --machine_type=g2-standard-8
 --worker_zone=us-central1-b
---disk_size_gb=40
+--disk_size_gb=50
 --input_options={}
 --num_workers=1
 --autoscaling_algorithm=NONE
