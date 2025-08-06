@@ -111,54 +111,82 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
     logging.info(
         "[MODEL HANDLER] Cuda Available: %s", torch.cuda.is_available())
 
-  def load_model(self):
-    logging.info("--- [MODEL HANDLER] Starting load_model() ---")
-    start_time = time.time()
+    def load_model(self):
+        # This is the new, hyper-detailed load_model method
+        logging.info("--- [MODEL HANDLER] Starting granular load_model() ---")
+        start_time = time.time()
 
-    self.check_gpu()
-    logging.info("[MODEL HANDLER] Importing vLLM libraries...")
-    from vllm.engine.async_llm_engine import AsyncLLMEngine
-    from vllm.engine.arg_utils import AsyncEngineArgs
-    from vllm.usage.usage_lib import UsageContext
-    logging.info("[MODEL HANDLER] vLLM libraries imported successfully.")
+        self.check_gpu() # This already logs GPU availability
 
-    if self._local_path is None:
-      local_dir = tempfile.mkdtemp()
-      self._local_path = local_dir
-      gcs_dir = self._model_gcs_path.rstrip('/')
-      pattern = f"{gcs_dir}/*"
-      matches = FileSystems.match([pattern])
-      metas = matches[0].metadata_list if matches else []
-      if not metas:
-        raise RuntimeError(f"No files found matching pattern {pattern}.")
-      for m in metas:
-        src = m.path
-        dst = os.path.join(local_dir, os.path.basename(src))
-        with FileSystems.open(src, 'rb') as fs, open(dst, 'wb') as fd:
-          fd.write(fs.read())
+        # --- Granular Import Block ---
+        try:
+            logging.info("[IMPORT_STEP 1/6 START] Importing vllm.engine.async_llm_engine")
+            from vllm.engine.async_llm_engine import AsyncLLMEngine
+            logging.info("[IMPORT_STEP 1/6 SUCCESS] Imported vllm.engine.async_llm_engine")
 
-    engine_args = {
-        "model": self._local_path,
-        "engine_use_ray": False,
-        "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
-        "gpu_memory_utilization": self._vllm_kwargs.get(
-            "gpu_memory_utilization", 0.8),
-        "dtype": self._vllm_kwargs.get("dtype", "float16"),
-        "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 128),
-    }
-    args = AsyncEngineArgs(**engine_args)
-    logging.info(
-        "[MODEL HANDLER] Creating AsyncLLMEngine (this can take minutes)...")
-    engine = AsyncLLMEngine.from_engine_args(
-        args, usage_context=UsageContext.API_SERVER)
+            logging.info("[IMPORT_STEP 2/6 START] Importing vllm.engine.arg_utils")
+            from vllm.engine.arg_utils import AsyncEngineArgs
+            logging.info("[IMPORT_STEP 2/6 SUCCESS] Imported vllm.engine.arg_utils")
 
-    self._loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(self._loop)
+            logging.info("[IMPORT_STEP 3/6 START] Importing vllm.usage.usage_lib")
+            from vllm.usage.usage_lib import UsageContext
+            logging.info("[IMPORT_STEP 3/6 SUCCESS] Imported vllm.usage.usage_lib")
+            
+            logging.info("[IMPORT_STEP 4/6 SUCCESS] All vLLM libraries imported successfully.")
 
-    elapsed = time.time() - start_time
-    logging.info(
-        f"--- [MODEL HANDLER] load_model() finished in {elapsed:.2f}s ---")
-    return engine
+        except Exception as e:
+            logging.error(f"[MODEL HANDLER] A standard Python exception occurred during import: {e}", exc_info=True)
+            raise e
+        # --- End Granular Import Block ---
+
+
+        logging.info("[MODEL HANDLER] Now proceeding to download model from GCS...")
+        if self._local_path is None:
+            local_dir = tempfile.mkdtemp()
+            self._local_path = local_dir
+            gcs_dir = self._model_gcs_path.rstrip('/')
+            pattern = f"{gcs_dir}/*"
+            logging.info(f"[MODEL HANDLER] Matching GCS pattern: {pattern}")
+            matches = FileSystems.match([pattern])
+            metas = matches[0].metadata_list if matches else []
+            if not metas:
+                raise RuntimeError(f"No files found matching pattern {pattern}.")
+        
+            logging.info(f"[MODEL HANDLER] Found {len(metas)} files. Starting download to {local_dir}...")
+            for i, m in enumerate(metas):
+                src = m.path
+                dst = os.path.join(local_dir, os.path.basename(src))
+                logging.info(f"[MODEL HANDLER] Downloading file {i+1}/{len(metas)}: {os.path.basename(src)}")
+                with FileSystems.open(src, 'rb') as fs, open(dst, 'wb') as fd:
+                    fd.write(fs.read())
+        logging.info(f"[MODEL HANDLER] GCS download complete.")
+
+
+        engine_args = {
+            "model": self._local_path,
+            "engine_use_ray": False,
+            "enforce_eager": self._vllm_kwargs.get("enforce_eager", False),
+            "gpu_memory_utilization": self._vllm_kwargs.get(
+                "gpu_memory_utilization", 0.8),
+            "dtype": self._vllm_kwargs.get("dtype", "float16"),
+            "max_num_seqs": self._vllm_kwargs.get("max_num_seqs", 128),
+        }
+        args = AsyncEngineArgs(**engine_args)
+        logging.info(
+            f"[MODEL HANDLER] [IMPORT_STEP 5/6 START] Creating AsyncLLMEngine with args: {engine_args}")
+        engine = AsyncLLMEngine.from_engine_args(
+            args, usage_context=UsageContext.API_SERVER)
+        logging.info("[MODEL HANDLER] [IMPORT_STEP 5/6 SUCCESS] AsyncLLMEngine created.")
+
+        logging.info("[MODEL HANDLER] [IMPORT_STEP 6/6 START] Setting up asyncio event loop.")
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        logging.info("[MODEL HANDLER] [IMPORT_STEP 6/6 SUCCESS] Event loop set up.")
+
+        elapsed = time.time() - start_time
+        logging.info(
+            f"--- [MODEL HANDLER] granular load_model() finished in {elapsed:.2f}s ---")
+        return engine
 
   def run_inference(
       self,
