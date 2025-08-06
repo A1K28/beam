@@ -6,7 +6,6 @@ faulthandler.enable()
 import os
 import logging
 import tempfile
-import multiprocessing as mp
 import asyncio
 from collections.abc import Iterable
 import uuid
@@ -19,8 +18,13 @@ from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInf
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
 from apache_beam.metrics import Metrics # <-- 1. IMPORT METRICS
 
-# Force safe multiprocessing start method early (avoid CUDA/fork issues).
-mp.set_start_method("spawn", force=True)
+COMPLETION_EXAMPLES = [
+    "Hello, my name is",
+    "The president of the United States is",
+    "The capital of France is",
+    "The future of AI is",
+    "John cena is",
+]
 
 
 class GemmaVLLMOptions(PipelineOptions):
@@ -258,7 +262,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
     # 4. ADD THE COUNTERS TO THE PIPELINE DEFINITION
     processed_elements = (
         p
-        | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+        # | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+        | "ReadPrompts" >> beam.Create(COMPLETION_EXAMPLES)
         | "CountRawReads" >> beam.ParDo(CountFn("pipeline", "prompts_read_from_file"))
         | "NonEmpty" >> beam.Filter(lambda l: l.strip())
         | "CountNonEmpty" >> beam.ParDo(CountFn("pipeline", "prompts_non_empty"))
@@ -286,5 +291,7 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
 
 
 if __name__ == "__main__":
-  logging.getLogger().setLevel(logging.INFO)
-  run()
+    import multiprocessing as mp
+    mp.set_start_method("spawn", force=True)
+    logging.getLogger().setLevel(logging.INFO)
+    run()
