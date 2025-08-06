@@ -8,6 +8,7 @@ import logging
 import tempfile
 import time
 import random
+from typing import Any, Dict, Optional
 
 import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
@@ -50,34 +51,22 @@ class CountFn(beam.DoFn):
         self.counter.inc()
         yield element
 
-# --- NEW CLASS: Inherits from Beam's handler to add GCS support ---
+
 class VLLMCompletionsModelHandlerFromGCS(VLLMCompletionsModelHandler):
     """
     A custom model handler that extends Beam's built-in VLLM handler
     to support loading models from a GCS path.
     """
     def __init__(self, model_gcs_path: str, **kwargs):
-        """
-        Args:
-          model_gcs_path: The GCS path to the directory containing model files.
-          **kwargs: Additional arguments for VLLMCompletionsModelHandler.
-        """
-        # Initialize the parent class. We use a placeholder for model_name
-        # because the real path will be determined during load_model.
         super().__init__(model_name="placeholder", **kwargs)
         self._model_gcs_path = model_gcs_path
-        self._local_path = None # To store the path of the downloaded model
+        self._local_path = None
 
     def load_model(self):
-        """
-        Overrides the base method to download the model before starting the server.
-        """
-        # Only download the model once per handler instance.
         if self._local_path is None:
             local_dir = tempfile.mkdtemp()
             logging.info(f"[HANDLER] Downloading model from {self._model_gcs_path} to {local_dir}...")
             
-            # Use Beam's FileSystems to handle GCS paths
             gcs_dir = self._model_gcs_path.rstrip('/')
             pattern = f"{gcs_dir}/*"
             match_result = FileSystems.match([pattern])[0]
@@ -94,16 +83,19 @@ class VLLMCompletionsModelHandlerFromGCS(VLLMCompletionsModelHandler):
             logging.info(f"[HANDLER] GCS download complete.")
             self._local_path = local_dir
 
-        # IMPORTANT: Set the parent's _model_name to our new local path.
-        # This is the path the vLLM server subprocess will use.
         self._model_name = self._local_path
-
-        # Now, call the original load_model, which will start the server
-        # using the local path we just provided.
         return super().load_model()
 
-# --- UPDATED POST-PROCESSOR ---
-# The output from the OpenAI server is different from the direct vLLM engine output.
+    # --- THIS IS THE FIX ---
+    def validate_inference_args(self, inference_args: Optional[Dict[str, Any]]):
+        """
+        Overrides the parent method to allow inference arguments.
+        The base VLLMCompletionsModelHandler incorrectly disallows them,
+        even though its run_inference method is designed to use them.
+        """
+        # By doing nothing here, we allow the arguments to be passed through.
+        pass
+
 class OpenAICompletionsPostProcessor(beam.DoFn):
   def __init__(self):
     super().__init__()
@@ -137,14 +129,11 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
 
   logging.info(f"Pipeline starting with model from GCS: {gem.model_gcs_path}")
 
-  # Pass arguments for the vLLM server here.
-  # These are passed as command-line flags to the subprocess.
   vllm_args = {
       'gpu-memory-utilization': '0.80',
-      'dtype': 'float16',
+      'dtype': 'bfloat16',
   }
   
-  # Pass arguments for the model's generate/create call here.
   inference_args = {
       'max_tokens': 1024,
       'temperature': 0.2,
@@ -158,7 +147,6 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
   with (test_pipeline or beam.Pipeline(options=opts)) as p:
     (
         p
-        # | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
         | "ReadPrompts" >> beam.Create(COMPLETION_EXAMPLES)
         | "CountRawReads" >> beam.ParDo(CountFn("pipeline", "prompts_read_from_file"))
         | "RunInference" >> RunInference(handler, inference_args=inference_args)
