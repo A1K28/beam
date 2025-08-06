@@ -18,6 +18,7 @@
 --model_gcs_path=gs://apache-beam-ml/models/gemma-2b-it
 --worker_harness_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.1.1_NVIDIA
 --sdk_harness_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.1.1_NVIDIA
+--sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.1.1_NVIDIA
 --sdk_location=container
 --dataflow-service-options=worker_accelerator=type:nvidia-tesla-t4,count:1,install_nvidia_driver
 --experiments=use_runner_v2
