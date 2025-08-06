@@ -1,7 +1,3 @@
-"""
-Batch pipeline: Gemma-2B-it via vLLM Async Engine → BigQuery, loading model from GCS.
-"""
-
 from __future__ import annotations
 
 import os
@@ -18,6 +14,7 @@ import apache_beam as beam
 from apache_beam.io.filesystems import FileSystems
 from apache_beam.ml.inference.base import ModelHandler, PredictionResult, RunInference
 from apache_beam.options.pipeline_options import PipelineOptions, SetupOptions
+from apache_beam.metrics import Metrics # <-- 1. IMPORT METRICS
 
 # Force safe multiprocessing start method early (avoid CUDA/fork issues).
 mp.set_start_method("spawn", force=True)
@@ -45,18 +42,45 @@ class GemmaVLLMOptions(PipelineOptions):
         "GCS path to the directory containing model files (e.g., gs://bucket/models/gemma-2b-it/).",
     )
 
+# 2. ADD A REUSABLE COUNTING DoFn
+class CountFn(beam.DoFn):
+    """A simple DoFn that counts elements and passes them through."""
+    def __init__(self, namespace, name):
+        super().__init__()
+        self.counter = Metrics.counter(namespace, name)
 
+    def process(self, element):
+        self.counter.inc()
+        yield element
+
+
+# 3. UPDATE THE POST-PROCESSOR WITH COUNTERS
 class GemmaPostProcessor(beam.DoFn):
+  def __init__(self):
+    super().__init__()
+    # Counter for elements received by this DoFn
+    self.received_counter = Metrics.counter('GemmaPostProcessor', 'elements_received')
+    # Counter for elements that are successfully processed
+    self.success_counter = Metrics.counter('GemmaPostProcessor', 'elements_succeeded')
+    # Counter for elements that are empty or failed
+    self.failure_counter = Metrics.counter('GemmaPostProcessor', 'elements_failed_or_empty')
+
   def process(self, element: PredictionResult):
+    self.received_counter.inc()
+
     # We unpack it to get the original prompt. We don't need the key here.
     _, prompt = element.example
 
     vllm_output = element.inference
 
+    # Check for empty or invalid output from the model
     if not vllm_output or not vllm_output.outputs:
+      self.failure_counter.inc()
+      logging.warning(f"Received empty or invalid inference for prompt: {prompt}")
       return
 
     choice = vllm_output.outputs[0]
+    self.success_counter.inc() # Increment success counter before yielding
     yield {
         "prompt": prompt,
         "completion": choice.text.strip(),
@@ -170,6 +194,8 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         logging.error(
             f"[MODEL HANDLER] Inference exception for prompt '{example}': {inference}"
         )
+        # We still pass the exception on so the PostProcessor can count it as a failure
+        results.append(PredictionResult(example, None))
         continue
       results.append(PredictionResult(example, inference))
 
@@ -198,14 +224,24 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
   )
 
   with (test_pipeline or beam.Pipeline(options=opts)) as p:
-    (
+    # 4. ADD THE COUNTERS TO THE PIPELINE DEFINITION
+    processed_elements = (
         p
         | "ReadPrompts" >> beam.io.ReadFromText(gem.input_file)
+        | "CountRawReads" >> beam.ParDo(CountFn("pipeline", "prompts_read_from_file"))
         | "NonEmpty" >> beam.Filter(lambda l: l.strip())
+        | "CountNonEmpty" >> beam.ParDo(CountFn("pipeline", "prompts_non_empty"))
         # Using 25 keys as an example, matching the max_num_workers.
         | "AddRandomKey" >> beam.Map(lambda x: (random.randint(0, 24), x))
         | "Infer" >> RunInference(handler)
+        # PostProcessor now has its own internal counters
         | "Post" >> beam.ParDo(GemmaPostProcessor())
+    )
+
+    # Add a final counter before writing to BQ to see what is being loaded
+    (
+        processed_elements
+        | "CountElementsForBQ" >> beam.ParDo(CountFn("pipeline", "elements_to_bq"))
         | "WriteToBQ" >> beam.io.WriteToBigQuery(
             gem.output_table,
             schema=
