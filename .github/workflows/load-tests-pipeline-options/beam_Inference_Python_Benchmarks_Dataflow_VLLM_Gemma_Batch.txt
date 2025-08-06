@@ -7,9 +7,8 @@
 --worker_zone=us-central1-b
 --disk_size_gb=50
 --input_options={}
---num_workers=4
---max_num_workers=25
---autoscaling_algorithm=THROUGHPUT_BASED
+--num_workers=1
+--autoscaling_algorithm=NONE
 --publish_to_big_query=true
 --output_table=apache-beam-testing.beam_run_inference.result_gemma_vllm_batch
 --metrics_dataset=beam_run_inference
