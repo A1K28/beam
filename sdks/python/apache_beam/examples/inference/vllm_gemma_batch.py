@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import faulthandler
+faulthandler.enable()
+
 import os
 import logging
 import tempfile
