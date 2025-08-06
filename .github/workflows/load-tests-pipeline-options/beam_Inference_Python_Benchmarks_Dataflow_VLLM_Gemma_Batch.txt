@@ -21,4 +21,4 @@
 --sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.1.1_NVIDIA
 --sdk_location=container
 --dataflow-service-options=worker_accelerator=type:nvidia-tesla-t4,count:1,install_nvidia_driver
---experiments=use_runner_v2
+--experiments=use_runner_v2,enable_custom_shm_size_4096

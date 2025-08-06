@@ -121,6 +121,14 @@ class VLLMModelHandlerGCS(ModelHandler[str, PredictionResult, object]):
         "[MODEL HANDLER] Cuda Available: %s", torch.cuda.is_available())
 
   def load_model(self):
+    import multiprocessing as mp
+    try:
+      mp.set_start_method("spawn", force=True)
+      logging.info("[MODEL HANDLER] Set multiprocessing start method to 'spawn'.")
+    except RuntimeError as e:
+      # This can happen if the context is already set.
+      logging.warning(f"[MODEL HANDLER] Could not set start method: {e}")
+
     logging.info("--- [MODEL HANDLER] Starting granular load_model() ---")
     start_time = time.time()
 
