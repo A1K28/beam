@@ -17,6 +17,7 @@
 --model_gcs_path=gs://apache-beam-ml/models/gemma-2b-it
 --sdk_container_image=us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:v0.2.0_NVIDIA
 --sdk_location=container
+--environment_type=DOCKER
 --dataflow_service_options="worker_accelerator=type:nvidia-l4;count:1;install-nvidia-driver:5xx"
 --host_maintenance_policy=TERMINATE
 --experiments=use_runner_v2,enable_unified_worker,enable_custom_shm_size_4096
