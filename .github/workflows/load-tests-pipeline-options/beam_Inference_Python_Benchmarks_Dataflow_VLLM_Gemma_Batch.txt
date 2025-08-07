@@ -11,6 +11,7 @@
 --max_num_workers=12
 --autoscaling_algorithm=THROUGHPUT_BASED
 --publish_to_big_query=true
+--sdk_location=container
 --output_table=apache-beam-testing.beam_run_inference.result_gemma_vllm_batch
 --metrics_dataset=beam_run_inference
 --metrics_table=gemma_vllm_batch

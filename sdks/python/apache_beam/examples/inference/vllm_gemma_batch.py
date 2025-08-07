@@ -62,32 +62,32 @@ class FormatOutput(beam.DoFn):
         }
 
 
-class GcsVLLMCompletionsModelHandler(VLLMCompletionsModelHandler):
-    def __init__(self, model_name, vllm_server_kwargs=None):
-        super().__init__(model_name, vllm_server_kwargs)
-        self._local_model_dir = None
+# class GcsVLLMCompletionsModelHandler(VLLMCompletionsModelHandler):
+#     def __init__(self, model_name, vllm_server_kwargs=None):
+#         super().__init__(model_name, vllm_server_kwargs)
+#         self._local_model_dir = None
 
-    def _download_gcs_directory(self, gcs_path: str, local_path: str):
-        logging.info(f"Downloading model from {gcs_path} to {local_path}…")
-        matches = FileSystems.match([os.path.join(gcs_path, "**")])[0].metadata_list
-        for md in matches:
-            rel = os.path.relpath(md.path, gcs_path)
-            dst = os.path.join(local_path, rel)
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            with FileSystems.open(md.path) as src, open(dst, "wb") as dstf:
-                dstf.write(src.read())
-        logging.info("Download complete.")
+#     def _download_gcs_directory(self, gcs_path: str, local_path: str):
+#         logging.info(f"Downloading model from {gcs_path} to {local_path}…")
+#         matches = FileSystems.match([os.path.join(gcs_path, "**")])[0].metadata_list
+#         for md in matches:
+#             rel = os.path.relpath(md.path, gcs_path)
+#             dst = os.path.join(local_path, rel)
+#             os.makedirs(os.path.dirname(dst), exist_ok=True)
+#             with FileSystems.open(md.path) as src, open(dst, "wb") as dstf:
+#                 dstf.write(src.read())
+#         logging.info("Download complete.")
 
-    def load_model(self) -> _VLLMModelServer:
-        uri = self._model_name
-        if uri.startswith("gs://"):
-            self._local_model_dir = tempfile.mkdtemp(prefix="vllm_model_")
-            self._download_gcs_directory(uri, self._local_model_dir)
-            logging.info(f"Loading vLLM from local dir {self._local_model_dir}")
-            return _VLLMModelServer(self._local_model_dir, self._vllm_server_kwargs)
-        else:
-            logging.info(f"Loading vLLM from HF hub: {uri}")
-            return super().load_model()
+#     def load_model(self) -> _VLLMModelServer:
+#         uri = self._model_name
+#         if uri.startswith("gs://"):
+#             self._local_model_dir = tempfile.mkdtemp(prefix="vllm_model_")
+#             self._download_gcs_directory(uri, self._local_model_dir)
+#             logging.info(f"Loading vLLM from local dir {self._local_model_dir}")
+#             return _VLLMModelServer(self._local_model_dir, self._vllm_server_kwargs)
+#         else:
+#             logging.info(f"Loading vLLM from HF hub: {uri}")
+#             return super().load_model()
 
 
 def run(argv=None, save_main_session=True, test_pipeline=None):
@@ -98,7 +98,8 @@ def run(argv=None, save_main_session=True, test_pipeline=None):
   opts.view_as(SetupOptions).save_main_session = save_main_session
 
   logging.info(f"Pipeline starting with model path: {gem.model_gcs_path}")
-  handler = GcsVLLMCompletionsModelHandler(model_name='gs://apache-beam-ml/models/gemma-2b-it')
+#   handler = GcsVLLMCompletionsModelHandler(model_name='gs://apache-beam-ml/models/gemma-2b-it')
+  handler = VLLMCompletionsModelHandler('facebook/opt-125m')
 
   with (test_pipeline or beam.Pipeline(options=opts)) as p:
     (
