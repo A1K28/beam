@@ -74,6 +74,25 @@ jobs:
         with:
           java-version: default
           python-version: '3.10'
+      - name: Package Python SDK using Gradle
+        run: ./gradlew :sdks:python:sdist -PpythonVersion=3.10
+
+      # ---- gcloud + auth ----
+      - name: Install gcloud
+        run: |
+          curl -sSL https://sdk.cloud.google.com | bash
+          echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+          source "$HOME/google-cloud-sdk/path.bash.inc"
+          gcloud --version
+      - name: Auth to GCP & Docker
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
+          gcloud auth activate-service-account --key-file=$HOME/sa.json
+          gcloud config set project $PROJECT
+          gcloud auth configure-docker us.gcr.io -q
+          echo '${{ secrets.GCP_SA_KEY }}' | docker login -u _json_key --password-stdin https://us.gcr.io
+      # ---- end ----
+
       - name: Prepare test arguments
         uses: ./.github/actions/test-arguments-action
         with:
@@ -91,8 +110,6 @@ jobs:
       # The env variables are created and populated in the test-arguments-action as "<github.job>_test_arguments_<argument_file_paths_index>"
       - name: get current time
         run: echo "NOW_UTC=$(date '+%m%d%H%M%S' --utc)" >> $GITHUB_ENV
-      - name: Package Python SDK using Gradle
-        run: ./gradlew :sdks:python:sdist -PpythonVersion=3.10
       - name: Build VLLM Development Image
         id: build_vllm_image
         # This now correctly uses your composite action
