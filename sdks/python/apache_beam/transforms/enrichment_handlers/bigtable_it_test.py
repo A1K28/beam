@@ -25,6 +25,7 @@ import pytest
 
 import apache_beam as beam
 from apache_beam.coders import coders
+from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import BeamAssertException
 
@@ -288,13 +289,15 @@ class TestBigTableEnrichment(unittest.TestCase):
         instance_id=self.instance_id,
         table_id=self.table_id,
         row_key='car_name')
+    opts = PipelineOptions(['--runner=PythonRPCDirectRunner'])
     with self.assertRaisesRegex(Exception, "not found in input"):
-      test_pipeline = beam.Pipeline()
+      test_pipeline = beam.Pipeline(options=opts)
       _ = (
           test_pipeline
           | "Create" >> beam.Create(self.req)
           | "Enrich W/ BigTable" >> Enrichment(bigtable))
       res = test_pipeline.run()
+      print("Active Runner:", test_pipeline.runner, test_pipeline.runner.__class__.__name__, test_pipeline.runner.__module__)
       res.wait_until_finish()
 
   def test_enrichment_with_bigtable_raises_not_found(self):
@@ -324,13 +327,15 @@ class TestBigTableEnrichment(unittest.TestCase):
         row_key=self.row_key,
         exception_level=ExceptionLevel.RAISE)
     req = [beam.Row(sale_id=1, customer_id=1, product_id=11, quantity=1)]
+    opts = PipelineOptions(['--runner=PythonRPCDirectRunner'])
     with self.assertRaisesRegex(Exception, "no matching row"):
-      test_pipeline = beam.Pipeline()
+      test_pipeline = beam.Pipeline(options=opts)
       _ = (
           test_pipeline
           | "Create" >> beam.Create(req)
           | "Enrich W/ BigTable" >> Enrichment(bigtable))
       res = test_pipeline.run()
+      print("Active Runner:", test_pipeline.runner, test_pipeline.runner.__class__.__name__, test_pipeline.runner.__module__)
       res.wait_until_finish()
 
   def test_enrichment_with_bigtable_with_timestamp(self):
