@@ -1,0 +1,50 @@
+name: Reusable Docker Build and Push
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile_path:
+        description: 'Path to the Dockerfile'
+        required: true
+        type: string
+      image_name:
+        description: 'Base name for the Docker image (e.g., gcr.io/my-project/my-app)'
+        required: true
+        type: string
+      image_tag:
+        description: 'Tag for the Docker image'
+        required: false
+        type: string
+        default: ${{ github.sha }}
+      build_context:
+        description: 'The build context for the Docker build command'
+        required: false
+        type: string
+        default: '.'
+
+    outputs:
+      image_url:
+        description: "The full URL of the pushed image, including the tag"
+        value: ${{ jobs.build-and-push.outputs.image_url }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image_url: ${{ steps.build-push.outputs.image_url }}
+
+    steps:
+      # The 'checkout' and 'auth' steps have been REMOVED from this reusable workflow.
+      # The caller job is now responsible for them.
+
+      - name: Configure Docker to use Google Cloud credentials
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and Push Docker Image
+        id: build-push
+        run: |
+          FULL_IMAGE_URL="${{ inputs.image_name }}:${{ inputs.image_tag }}"
+          echo "Building image: $FULL_IMAGE_URL"
+          docker build -t $FULL_IMAGE_URL -f ${{ inputs.dockerfile_path }} ${{ inputs.build_context }}
+          docker push $FULL_IMAGE_URL
+          echo "image_url=$FULL_IMAGE_URL" >> $GITHUB_OUTPUT

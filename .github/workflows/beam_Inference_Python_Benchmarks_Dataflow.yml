@@ -90,18 +90,16 @@ jobs:
       # The env variables are created and populated in the test-arguments-action as "<github.job>_test_arguments_<argument_file_paths_index>"
       - name: get current time
         run: echo "NOW_UTC=$(date '+%m%d%H%M%S' --utc)" >> $GITHUB_ENV
-      - name: Package, Build, and Push vLLM GPU backed Image
+      - name: Package Python SDK source code
         run: |
-          # 1. Package local source code into ./dist/
+          cd sdks/python
           python setup.py sdist
-
-          # 2. Define a unique image tag and save it as an environment variable
-          IMAGE_TAG="us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:${{ github.sha }}"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-
-          # 3. Build and push the image using your modified Dockerfile
-          docker build . -t $IMAGE_TAG
-          docker push $IMAGE_TAG
+      - name: Build VLLM Development Image
+        id: build_vllm_image  # Give this step an ID to access its output
+        uses: ./.github/actions/build-docker-image-action
+        with:
+          dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/vllm.dockerfile'
+          image_name: 'gcr.io/your-gcp-project/beam-vllm-dev' # IMPORTANT: Change this
       - name: run VLLM Gemma Batch using Google gemma-2b-it
         uses: ./.github/actions/gradle-command-self-hosted-action
         timeout-minutes: 180
