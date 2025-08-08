@@ -289,7 +289,10 @@ class TestBigTableEnrichment(unittest.TestCase):
         instance_id=self.instance_id,
         table_id=self.table_id,
         row_key='car_name')
-    opts = PipelineOptions(['--runner=PythonRPCDirectRunner'])
+    opts = PipelineOptions([
+        '--runner=DirectRunner',
+        '--experiments=beam_fn_api=false',
+    ])
     with self.assertRaisesRegex(Exception, "not found in input"):
       test_pipeline = beam.Pipeline(options=opts)
       _ = (
@@ -327,7 +330,10 @@ class TestBigTableEnrichment(unittest.TestCase):
         row_key=self.row_key,
         exception_level=ExceptionLevel.RAISE)
     req = [beam.Row(sale_id=1, customer_id=1, product_id=11, quantity=1)]
-    opts = PipelineOptions(['--runner=PythonRPCDirectRunner'])
+    opts = PipelineOptions([
+        '--runner=DirectRunner',
+        '--experiments=beam_fn_api=false',
+    ])
     with self.assertRaisesRegex(Exception, "no matching row"):
       test_pipeline = beam.Pipeline(options=opts)
       _ = (
