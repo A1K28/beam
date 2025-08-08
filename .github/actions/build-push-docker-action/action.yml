@@ -32,16 +32,6 @@ runs:
       shell: bash
       run: gcloud auth configure-docker --quiet
 
-    # --- NEW DEBUGGING STEP ---
-    - name: List files IN a build context
-      shell: bash
-      run: |
-        echo "--- Debugging build context right before docker build ---"
-        echo "Current directory is: $(pwd)"
-        echo "Full recursive file listing:"
-        ls -lR .
-    # --- END DEBUGGING STEP ---
-
     - name: Build and Push Docker Image
       id: build-push # Give the step an ID to reference its output
       shell: bash

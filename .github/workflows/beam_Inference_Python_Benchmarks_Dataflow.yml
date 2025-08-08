@@ -93,13 +93,6 @@ jobs:
         run: echo "NOW_UTC=$(date '+%m%d%H%M%S' --utc)" >> $GITHUB_ENV
       - name: Package Python SDK using Gradle
         run: ./gradlew :sdks:python:sdist -PpythonVersion=3.10
-      - name: Verify Created Files
-        run: |
-          echo "--- Verifying created files and directories ---"
-          echo "Current directory is: $(pwd)"
-          echo ""
-          echo "Listing contents of 'sdks/python/build/':"
-          ls -lR sdks/python/build/
       - name: Build VLLM Development Image
         id: build_vllm_image
         # This now correctly uses your composite action
