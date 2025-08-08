@@ -271,7 +271,9 @@ class TestBigTableEnrichment(unittest.TestCase):
         table_id=self.table_id,
         row_key=self.row_key,
         row_filter=column_filter)
-    with self.assertRaises(Exception):
+    # FIX: Use assertRaisesRegex to check for a specific error message.
+    # A bad column family should raise an error from the BigTable client.
+    with self.assertRaisesRegex(Exception, "column family.*not found"):
       test_pipeline = beam.Pipeline()
       _ = (
           test_pipeline
@@ -305,7 +307,9 @@ class TestBigTableEnrichment(unittest.TestCase):
         instance_id=self.instance_id,
         table_id='invalid_table',
         row_key=self.row_key)
-    with self.assertRaises(Exception):
+    # FIX: Use assertRaisesRegex to check for the specific "Not Found" message
+    # from the GCP client, which will be wrapped in the runner's exception.
+    with self.assertRaisesRegex(Exception, "Table not found: invalid_table"):
       test_pipeline = beam.Pipeline()
       _ = (
           test_pipeline
