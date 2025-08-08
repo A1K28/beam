@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import logging
 import unittest
 from unittest.mock import MagicMock
@@ -64,6 +65,7 @@ class ValidateResponse(beam.DoFn):
 @pytest.mark.uses_testcontainer
 class TestVertexAIFeatureStoreHandler(unittest.TestCase):
   def setUp(self) -> None:
+    print('TC_MAX_TRIES=', os.getenv('TC_MAX_TRIES'))
     self.project = 'apache-beam-testing'
     self.location = 'us-central1'
     self.feature_store_name = "the_look_demo_unique"

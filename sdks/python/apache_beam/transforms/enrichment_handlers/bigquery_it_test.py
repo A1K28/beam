@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import functools
 import logging
 import secrets
@@ -164,6 +165,7 @@ class TestBigQueryEnrichmentIT(BigQueryEnrichmentIT):
     self.client = None
 
   def test_bigquery_enrichment(self):
+    print('TC_MAX_TRIES=', os.getenv('TC_MAX_TRIES'))
     expected_rows = [
         beam.Row(id=1, name="A", quantity=2, distribution_center_id=3),
         beam.Row(id=2, name="B", quantity=3, distribution_center_id=1)
