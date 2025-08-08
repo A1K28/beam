@@ -90,6 +90,18 @@ jobs:
       # The env variables are created and populated in the test-arguments-action as "<github.job>_test_arguments_<argument_file_paths_index>"
       - name: get current time
         run: echo "NOW_UTC=$(date '+%m%d%H%M%S' --utc)" >> $GITHUB_ENV
+      - name: Package, Build, and Push vLLM GPU backed Image
+        run: |
+          # 1. Package local source code into ./dist/
+          python setup.py sdist
+
+          # 2. Define a unique image tag and save it as an environment variable
+          IMAGE_TAG="us.gcr.io/apache-beam-testing/beam-vllm-gpu-base:${{ github.sha }}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+          # 3. Build and push the image using your modified Dockerfile
+          docker build . -t $IMAGE_TAG
+          docker push $IMAGE_TAG
       - name: run VLLM Gemma Batch using Google gemma-2b-it
         uses: ./.github/actions/gradle-command-self-hosted-action
         timeout-minutes: 180
@@ -99,7 +111,7 @@ jobs:
             -PloadTest.mainClass=apache_beam.testing.benchmarks.inference.vllm_gemma_benchmarks \
             -Prunner=DataflowRunner \
             -PpythonVersion=3.10 \
-            -PloadTest.requirementsTxtFile=apache_beam/ml/inference/vllm_tests_requirements.txt '-PloadTest.args=${{ env.beam_Inference_Python_Benchmarks_Dataflow_test_arguments_8 }} --mode=batch --job_name=benchmark-tests-vllm-with-gemma-2b-it-batch-${{env.NOW_UTC}}'
+            -PloadTest.requirementsTxtFile=apache_beam/ml/inference/vllm_tests_requirements.txt '-PloadTest.args=${{ env.beam_Inference_Python_Benchmarks_Dataflow_test_arguments_8 }} --mode=batch --job_name=benchmark-tests-vllm-with-gemma-2b-it-batch-${{env.NOW_UTC}} --sdk_container_image=${{ env.IMAGE_TAG }}'
       # - name: run Pytorch Sentiment Streaming using Hugging Face distilbert-base-uncased model
       #   uses: ./.github/actions/gradle-command-self-hosted-action
       #   timeout-minutes: 180
