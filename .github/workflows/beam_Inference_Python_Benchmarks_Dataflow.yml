@@ -54,7 +54,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'schedule' && github.repository == 'apache/beam') ||
       github.event.comment.body == 'Run Inference Benchmarks'
-    runs-on: [self-hosted, ubuntu-20.04, main]
+    runs-on: [main]
     timeout-minutes: 1000
     name: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
     strategy:
@@ -76,8 +76,27 @@ jobs:
           python-version: '3.10'
       - name: Package Python SDK using Gradle
         run: ./gradlew :sdks:python:sdist -PpythonVersion=3.10
+
+      # ---- gcloud + auth ----
+      - name: Install gcloud
+        run: |
+          curl -sSL https://sdk.cloud.google.com | bash
+          echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+          source "$HOME/google-cloud-sdk/path.bash.inc"
+          gcloud --version
+      - name: Auth to GCP & Docker
+        env:
+          PROJECT: apache-beam-testing
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
+          gcloud auth activate-service-account --key-file=$HOME/sa.json
+          gcloud config set project $PROJECT
+          gcloud auth configure-docker us.gcr.io -q
+          echo '${{ secrets.GCP_SA_KEY }}' | docker login -u _json_key --password-stdin https://us.gcr.io
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-docker.pkg.dev
+      # ---- end ----
       - name: Prepare test arguments
         uses: ./.github/actions/test-arguments-action
         with:
