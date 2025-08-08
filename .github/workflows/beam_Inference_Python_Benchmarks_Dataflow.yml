@@ -106,7 +106,7 @@ jobs:
         uses: ./.github/actions/build-push-docker-action
         with:
           dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/vllm.dockerfile'
-          image_name: 'us.gcr.io/apache-beam-testing/beam-vllm-gpu-base'
+          image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/beam-vllm-gpu-base'
           # You must now provide the tag from the calling workflow
           image_tag: ${{ github.sha }}
       - name: run VLLM Gemma Batch using Google gemma-2b-it
