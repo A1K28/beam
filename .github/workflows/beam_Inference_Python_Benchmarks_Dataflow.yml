@@ -92,7 +92,7 @@ jobs:
       - name: get current time
         run: echo "NOW_UTC=$(date '+%m%d%H%M%S' --utc)" >> $GITHUB_ENV
       - name: Package Python SDK using Gradle
-        run: ./gradlew :sdks:python:sdist
+        run: ./gradlew :sdks:python:sdist -PpythonVersion=3.10
       - name: Build VLLM Development Image
         id: build_vllm_image  # Give this step an ID to access its output
         uses: ./.github/actions/build-docker-image-action
