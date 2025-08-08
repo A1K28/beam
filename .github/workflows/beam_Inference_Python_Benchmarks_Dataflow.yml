@@ -85,6 +85,9 @@ jobs:
           source "$HOME/google-cloud-sdk/path.bash.inc"
           gcloud --version
       - name: Auth to GCP & Docker
+        env:
+          PROJECT: apache-beam-testing
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
           echo '${{ secrets.GCP_SA_KEY }}' > $HOME/sa.json
           gcloud auth activate-service-account --key-file=$HOME/sa.json
