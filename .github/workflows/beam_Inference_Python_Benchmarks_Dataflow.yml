@@ -94,11 +94,14 @@ jobs:
       - name: Package Python SDK using Gradle
         run: ./gradlew :sdks:python:sdist -PpythonVersion=3.10
       - name: Build VLLM Development Image
-        id: build_vllm_image  # Give this step an ID to access its output
+        id: build_vllm_image
+        # This now correctly uses your composite action
         uses: ./.github/actions/build-push-docker-action
         with:
           dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/vllm.dockerfile'
-          image_name: 'gcr.io/your-gcp-project/beam-vllm-dev' # IMPORTANT: Change this
+          image_name: 'us.gcr.io/apache-beam-testing/beam-vllm-gpu-base'
+          # You must now provide the tag from the calling workflow
+          image_tag: ${{ github.sha }}
       - name: run VLLM Gemma Batch using Google gemma-2b-it
         uses: ./.github/actions/gradle-command-self-hosted-action
         timeout-minutes: 180
