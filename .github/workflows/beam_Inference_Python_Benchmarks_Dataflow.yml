@@ -94,6 +94,8 @@ jobs:
           gcloud config set project $PROJECT
           gcloud auth configure-docker us.gcr.io -q
           echo '${{ secrets.GCP_SA_KEY }}' | docker login -u _json_key --password-stdin https://us.gcr.io
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-docker.pkg.dev
       # ---- end ----
 
       - name: Prepare test arguments
