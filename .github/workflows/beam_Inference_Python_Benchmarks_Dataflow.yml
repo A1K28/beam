@@ -72,6 +72,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/setup-environment-action
         with:
+          java-version: default
           python-version: '3.10'
       - name: Prepare test arguments
         uses: ./.github/actions/test-arguments-action
@@ -90,10 +91,8 @@ jobs:
       # The env variables are created and populated in the test-arguments-action as "<github.job>_test_arguments_<argument_file_paths_index>"
       - name: get current time
         run: echo "NOW_UTC=$(date '+%m%d%H%M%S' --utc)" >> $GITHUB_ENV
-      - name: Package Python SDK source code
-        run: |
-          cd sdks/python
-          python setup.py sdist
+      - name: Package Python SDK using Gradle
+        run: ./gradlew :sdks:python:sdist
       - name: Build VLLM Development Image
         id: build_vllm_image  # Give this step an ID to access its output
         uses: ./.github/actions/build-docker-image-action
