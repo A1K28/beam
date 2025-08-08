@@ -55,7 +55,7 @@ ENV PYTHONPATH=/opt/apache/beam:$PYTHONPATH
 # 6) Install the Beam dev SDK from the local source package.
 # This .tar.gz file will be created by GitHub Actions workflow
 # and copied into the build context.
-COPY ./sdks/python/build/distributions/apache-beam-*.tar.gz /tmp/beam.tar.gz
+COPY ./sdks/python/build/apache-beam-*.tar.gz /tmp/beam.tar.gz
 RUN python3 -m pip install --no-cache-dir "/tmp/beam.tar.gz[gcp]"
 
 # 7) Install vLLM, and other dependencies
