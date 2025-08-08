@@ -278,7 +278,7 @@ class TestBigTableEnrichment(unittest.TestCase):
           | "Create" >> beam.Create(self.req)
           | "Enrich W/ BigTable" >> Enrichment(bigtable))
       res = test_pipeline.run()
-      res.wait_until_finish(duration=20000)
+      res.wait_until_finish()
 
   def test_enrichment_with_bigtable_raises_key_error(self):
     """raises a `KeyError` when the row_key doesn't exist in
@@ -295,7 +295,7 @@ class TestBigTableEnrichment(unittest.TestCase):
           | "Create" >> beam.Create(self.req)
           | "Enrich W/ BigTable" >> Enrichment(bigtable))
       res = test_pipeline.run()
-      res.wait_until_finish(duration=20000)
+      res.wait_until_finish()
 
   def test_enrichment_with_bigtable_raises_not_found(self):
     """raises a `NotFound` exception when the GCP BigTable Cluster
@@ -312,7 +312,7 @@ class TestBigTableEnrichment(unittest.TestCase):
           | "Create" >> beam.Create(self.req)
           | "Enrich W/ BigTable" >> Enrichment(bigtable))
       res = test_pipeline.run()
-      res.wait_until_finish(duration=20000)
+      res.wait_until_finish()
 
   def test_enrichment_with_bigtable_exception_level(self):
     """raises a `ValueError` exception when the GCP BigTable query returns
@@ -331,7 +331,7 @@ class TestBigTableEnrichment(unittest.TestCase):
           | "Create" >> beam.Create(req)
           | "Enrich W/ BigTable" >> Enrichment(bigtable))
       res = test_pipeline.run()
-      res.wait_until_finish(duration=20000)
+      res.wait_until_finish()
 
   def test_enrichment_with_bigtable_with_timestamp(self):
     """test whether the `(value,timestamp)` is returned when the
