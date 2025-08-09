@@ -101,7 +101,7 @@ docker {
                      project.rootProject.hasProperty(["isRelease"])])
   buildx project.useBuildx()
   platform(*project.containerPlatforms())
-  load project.useBuildx() && !pushContainers
+  load (project.useBuildx() && !pushContainers) || System.getenv("CI")
   push pushContainers
 }
 
