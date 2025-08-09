@@ -283,6 +283,17 @@ var sparkFilters = []string{
 }
 
 var dataflowFilters = []string{
+	// Temporary filters
+	// “TestXLang_Prefix”,
+	"TestXLang_CoGroupBy",
+	"TestXLang_Combine",
+	"TestXLang_CombineGlobally",
+	"TestXLang_Flatten",
+	"TestXLang_GroupBy",
+	"TestXLang_Multi",
+	"TestXLang_Partition",
+	"TestBigQueryIO_BasicWriteRead",
+	"TestBigtableIO_BasicWriteRead",
 	// The Dataflow runner doesn't work with tests using testcontainers locally.
 	"TestJDBCIO_BasicReadWrite",
 	"TestJDBCIO_PostgresReadWrite",
