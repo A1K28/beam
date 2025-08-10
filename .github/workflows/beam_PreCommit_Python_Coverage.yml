@@ -80,26 +80,13 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
-      - name: Start Docker-in-Docker
+      - name: DEBUG - Run DinD in Foreground to capture logs
         run: |
-          # Use a directory on the large workspace partition for the new daemon's data
-          mkdir -p ${{ github.workspace }}/dind-storage
-
-          # Start a new, privileged Docker daemon in a container.
-          # We mount our workspace directory as its data root and expose its port.
-          docker run --privileged --name dind-daemon -d \
+          # This command will run the daemon in the foreground to see its startup logs directly.
+          # We expect this step to fail, but it should print the underlying error.
+          docker run --privileged --name dind-daemon-debug -it \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
-            -p 127.0.0.1:2375:2375 \
-            docker:dind --storage-driver=vfs
-
-      - name: Check DinD Container Status and Logs
-        if: always()
-        run: |
-          echo "--- Checking status of all Docker containers ---"
-          docker ps -a
-          echo "--- Displaying logs for the dind-daemon container ---"
-          # This command might fail if the container never started, which is okay.
-          docker logs dind-daemon || echo "dind-daemon container not found or no logs available."
+            docker:dind --storage-driver=overlay2
 
       - name: Set DOCKER_HOST to connect to the new daemon
         run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
