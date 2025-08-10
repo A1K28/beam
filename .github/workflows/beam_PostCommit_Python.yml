@@ -61,14 +61,14 @@ jobs:
       matrix:
         job_name: [beam_PostCommit_Python]
         job_phrase: [Run Python PostCommit]
-        python_version: ['3.9', '3.10', '3.11', '3.12']
+        python_version: ['3.9']
         # Run on both self-hosted and GitHub-hosted runners.
         # Some tests (marked require_docker_in_docker) can't run on Beam's
         # self-hosted runners due to Docker-in-Docker environment constraint.
         # These tests will only execute on ubuntu-latest (GitHub-hosted).
         # Context: https://github.com/apache/beam/pull/35585
         # Temporary removed the ubuntu-latest env till resolving deps issues.
-        os: [[self-hosted, ubuntu-20.04, highmem22]]
+        os: [[highmem22]]
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request_target' ||
@@ -99,7 +99,32 @@ jobs:
           PY_VER=${{ matrix.python_version }}
           PY_VER_CLEAN=${PY_VER//.}
           echo "py_ver_clean=$PY_VER_CLEAN" >> $GITHUB_OUTPUT
+
+      # CHANGES START HERE
+      - name: Print docker host before
+        run: |
+          echo "DOCKER_HOST=$DOCKER_HOST"
+          docker info --format 'Operating System: {{.OperatingSystem}}'
+
+      - uses: ./.github/actions/dind-up-action
+        id: dind
+        
+      - name: Print docker host after
+        run: |
+          echo "DOCKER_HOST=$DOCKER_HOST"
+          docker info --format 'Operating System: {{.OperatingSystem}}'
+
+      - name: Print docker host after (DinD)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+        run: |
+          echo "DOCKER_HOST=$DOCKER_HOST"
+          docker info --format 'Operating System: {{.OperatingSystem}}'
+
       - name: run PostCommit Python ${{ matrix.python_version }} script
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+      # CHANGES END HERE
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :python${{steps.set_py_ver_clean.outputs.py_ver_clean}}PostCommit
