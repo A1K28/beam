@@ -73,10 +73,36 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
-      - name: Setup environment
+
+      # ───────── Set up build tools and languages ──────────────────────────────
+      - name: Setup environment (Java, Go, Python)
         uses: ./.github/actions/setup-environment-action
         with:
+          java-version: default
+          go-version: default
           python-version: default
+
+      # ───────── Authenticate to GCP and Dataflow ──────────────────────────────
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.GCP_PROJECT }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Make gcloud config writable
+        run: |
+          mkdir -p "$RUNNER_TEMP/gcloud"
+          echo "CLOUDSDK_CONFIG=$RUNNER_TEMP/gcloud" >> "$GITHUB_ENV"
+
+      - name: Authenticate Docker with Artifact Registry
+        run: gcloud auth configure-docker us.gcr.io --quiet
+
+      - name: Write SA key file
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/sa.json" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: GCloud Docker credential helper
