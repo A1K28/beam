@@ -75,15 +75,19 @@ runs:
         fi
         echo
         docker -H "tcp://${HOST}:${PORT}" info
-
-    - id: set-env
-      name: Export DOCKER_HOST for subsequent steps
+    
+    - id: set-output
       shell: bash
       run: |
         HOST="${{ inputs.bind-address || '127.0.0.1' }}"
         PORT="${{ inputs.port || '2375' }}"
-        echo "DOCKER_HOST=tcp://${HOST}:${PORT}" >> "$GITHUB_ENV"
         echo "docker_host=tcp://${HOST}:${PORT}" >> "$GITHUB_OUTPUT"
+
+    - id: maybe-export
+      if: ${{ inputs.export-gh-env == 'true' }}
+      shell: bash
+      run: |
+        echo "DOCKER_HOST=${{ steps.set-output.outputs.docker_host }}" >> "$GITHUB_ENV"
 
 inputs:
   container-name:
@@ -112,7 +116,10 @@ inputs:
     default: "180"
   additional-dockerd-args:
     default: ""
+  export-gh-env:
+    description: "Also write DOCKER_HOST to $GITHUB_ENV for the rest of the job"
+    default: "false"
 
 outputs:
   docker-host:
-    value: ${{ steps.set-env.outputs.docker_host }}
+    value: ${{ steps.set-output.outputs.docker_host }}
