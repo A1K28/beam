@@ -80,12 +80,11 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
-      - name: DEBUG - Run DinD in Foreground to capture logs
+      - name: Start Docker-in-Docker
         run: |
-          # This command runs the daemon in the foreground without allocating a TTY.
-          # We still expect this step to fail, but it should now print the real error.
-          docker run --privileged --name dind-daemon-debug \
+          docker run --privileged --name dind-daemon -d \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
+            -p 127.0.0.1:2375:2375 \
             docker:dind --storage-driver=overlay2
 
       - name: Set DOCKER_HOST to connect to the new daemon
@@ -96,7 +95,6 @@ jobs:
           echo "Waiting for the new Docker daemon..."
           timeout 30s bash -c 'until docker info &>/dev/null; do echo -n "."; sleep 1; done'
           echo "Docker-in-Docker is ready!"
-          docker info
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
