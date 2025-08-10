@@ -89,8 +89,6 @@ jobs:
         with:
           java-version: default
           python-version: default
-
-          
       - name: Run preCommitPyCoverage
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
