@@ -144,10 +144,13 @@ docker {
             'base_image': javaBaseImage,
             'java_version': imageJavaVersion,
     ])
-    buildx project.useBuildx()
+    // buildx project.useBuildx()
+    buildx true
     platform(*project.containerPlatforms())
-    load project.useBuildx() && !pushContainers
-    push pushContainers
+    load true
+    push false
+    // load project.useBuildx() && !pushContainers
+    // push pushContainers
 }
 
 if (project.rootProject.hasProperty("docker-pull-licenses") ||
