@@ -82,28 +82,21 @@ jobs:
 
       # --- START: NEW ROBUST STEPS ---
 
-      - name: Start Docker-in-Docker Service
+      - name: DEBUG - Start and Immediately Inspect DinD
         run: |
-          # We still start the DinD daemon in the background
+          # Try to start the container, but add '|| true' so the workflow doesn't stop if it crashes.
           docker run --privileged --name dind-daemon -d \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
-            docker:dind --storage-driver=overlay2
-
-      - name: Run Build inside a Linked Container
-        run: |
-          # Wait for the DinD daemon to be ready before we try to use it
-          echo "Waiting for DinD service..."
-          timeout 60s bash -c 'until docker --host=tcp://dind-daemon:2375 info &>/dev/null; do echo -n "."; sleep 1; done'
+            docker:dind --storage-driver=overlay2 || true
           
-          echo "DinD is ready. Running build..."
-          # Now, run the Gradle build inside a container that has the necessary tools
-          # and is linked to our DinD service.
-          docker run --rm \
-            --link dind-daemon:docker \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            gradle:8.5.0-jdk11 \
-            ./gradlew :sdks:python:test-suites:tox:py39:preCommitPyCoverage
+          # Give it a moment to crash
+          sleep 5
+
+          echo "--- Checking final container status (it is expected to have failed) ---"
+          docker ps -a
+
+          echo "--- Retrieving logs from the crashed container ---"
+          docker logs dind-daemon
 
       # --- END: NEW ROBUST STEPS ---
 
