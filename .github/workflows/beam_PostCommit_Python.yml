@@ -100,32 +100,15 @@ jobs:
           PY_VER_CLEAN=${PY_VER//.}
           echo "py_ver_clean=$PY_VER_CLEAN" >> $GITHUB_OUTPUT
 
-      # CHANGES START HERE
-      - name: Print docker host before
+      - name: Set and create temporary directory
         run: |
-          echo "DOCKER_HOST=$DOCKER_HOST"
-          docker info --format 'Operating System: {{.OperatingSystem}}'
-
-      - uses: ./.github/actions/dind-up-action
-        id: dind
-        
-      - name: Print docker host after
-        run: |
-          echo "DOCKER_HOST=$DOCKER_HOST"
-          docker info --format 'Operating System: {{.OperatingSystem}}'
-
-      - name: Print docker host after (DinD)
-        env:
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-        run: |
-          echo "DOCKER_HOST=$DOCKER_HOST"
-          docker info --format 'Operating System: {{.OperatingSystem}}'
+          TEMP_PATH="${{ runner.temp }}/docker-tmp"
+          mkdir -p "$TEMP_PATH"
+          echo "TMPDIR=$TEMP_PATH" >> $GITHUB_ENV
 
       - name: run PostCommit Python ${{ matrix.python_version }} script
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-      # CHANGES END HERE
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :python${{steps.set_py_ver_clean.outputs.py_ver_clean}}PostCommit
