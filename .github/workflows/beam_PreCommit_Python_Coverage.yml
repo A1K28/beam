@@ -82,9 +82,9 @@ jobs:
 
       - name: DEBUG - Run DinD in Foreground to capture logs
         run: |
-          # This command will run the daemon in the foreground to see its startup logs directly.
-          # We expect this step to fail, but it should print the underlying error.
-          docker run --privileged --name dind-daemon-debug -it \
+          # This command runs the daemon in the foreground without allocating a TTY.
+          # We still expect this step to fail, but it should now print the real error.
+          docker run --privileged --name dind-daemon-debug \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
             docker:dind --storage-driver=overlay2
 
