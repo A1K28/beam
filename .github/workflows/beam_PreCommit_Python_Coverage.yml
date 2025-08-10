@@ -85,6 +85,7 @@ jobs:
           java-version: default
           python-version: default
       - name: Run preCommitPyCoverage
+      
         # env:
         #   TMPDIR: /home/docker/actions-runner/_work/tmp
         uses: ./.github/actions/gradle-command-self-hosted-action
