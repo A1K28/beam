@@ -82,22 +82,21 @@ jobs:
 
       # --- START: NEW ROBUST STEPS ---
 
-      - name: DEBUG - Start and Immediately Inspect DinD
+      - name: Start Docker-in-Docker Service
         run: |
-          # Try to start the container, but add '|| true' so the workflow doesn't stop if it crashes.
           docker run --privileged --name dind-daemon -d \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
-            docker:dind --storage-driver=overlay2 || true
+            docker:dind --storage-driver=overlay2
+
+      - name: Set DOCKER_HOST for client commands
+        run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
+
+      - name: Wait for DinD Daemon to be ready
+        run: |
+          echo "Waiting for Docker-in-Docker daemon..."
+          timeout 60s bash -c 'until docker exec dind-daemon docker info &>/dev/null; do echo -n "."; sleep 1; done'
+          echo "Docker-in-Docker is ready!"
           
-          # Give it a moment to crash
-          sleep 5
-
-          echo "--- Checking final container status (it is expected to have failed) ---"
-          docker ps -a
-
-          echo "--- Retrieving logs from the crashed container ---"
-          docker logs dind-daemon
-
       # --- END: NEW ROBUST STEPS ---
 
       - name: Setup environment
