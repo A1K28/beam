@@ -80,6 +80,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
+      - name: Check space and inodes
+        if: always()
+        run: |
+          echo "== df -h /run =="
+          df -h /run || true
+          echo "== df -i /run (inodes) =="
+          df -i /run || true
+
       # --- START: NEW ROBUST STEPS ---
 
       - name: Start Docker-in-Docker (TCP 2375, no TLS)
