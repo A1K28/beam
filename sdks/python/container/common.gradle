@@ -101,10 +101,8 @@ docker {
                      project.rootProject.hasProperty(["isRelease"])])
   buildx project.useBuildx()
   platform(*project.containerPlatforms())
-  // load project.useBuildx() && !pushContainers
-  load true
-  // push pushContainers
-  push false
+  load (project.useBuildx() && !pushContainers) || System.getenv("CI")
+  push pushContainers
 }
 
 dockerPrepare.dependsOn copyLauncherDependencies
