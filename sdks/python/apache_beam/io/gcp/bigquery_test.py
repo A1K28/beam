@@ -1528,7 +1528,7 @@ class BigQueryStreamingInsertsErrorHandling(unittest.TestCase):
     # code actually performs one sequence of retries.
     expected_call_count = 1 + bigquery_tools.MAX_RETRIES
 
-    with self.assertRaises(RuntimeError) as exc:
+    with self.assertRaises(exception_type) as exc:
       with beam.Pipeline() as p:
         _ = (
             p
