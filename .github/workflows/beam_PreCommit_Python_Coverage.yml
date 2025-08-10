@@ -99,19 +99,11 @@ jobs:
           java-version: default
           python-version: default
 
-      - name: Verify DOCKER_HOST inside tox env
+      - name: Quick ping to DinD
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
         run: |
-          python - <<'PY'
-          import os
-          print("Outer DOCKER_HOST:", os.getenv("DOCKER_HOST"))
-          PY
-          # Now check what tox gives to the test env:
-          tox -qq -e py39-cloudcoverage -- python - <<'PY'
-          import os
-          print("Inside-tox DOCKER_HOST:", os.getenv("DOCKER_HOST"))
-          PY
+          docker info --format 'Daemon OK → OS={{.OperatingSystem}} RootDir={{.DockerRootDir}}'
 
       - name: Run preCommitPyCoverage
         env:
