@@ -82,20 +82,32 @@ jobs:
 
       # --- START: NEW ROBUST STEPS ---
 
-      - name: Start Docker-in-Docker Service
+      - name: Start Docker-in-Docker (TCP 2375, no TLS)
         run: |
-          docker run --privileged --name dind-daemon -d \
-            -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
-            docker:dind --storage-driver=overlay2
+          docker rm -f dind-daemon 2>/dev/null || true
+          docker run -d --privileged --name dind-daemon \
+            --cgroupns=host \
+            -e DOCKER_TLS_CERTDIR= \
+            -p 127.0.0.1:2375:2375 \
+            -v dind-storage:/var/lib/docker \
+            --health-cmd='docker info > /dev/null' \
+            --health-interval=2s \
+            --health-retries=30 \
+            --health-start-period=10s \
+            docker:dind \
+              --host=tcp://0.0.0.0:2375 \
+              --host=unix:///var/run/docker.sock \
+              --storage-driver=overlay2
 
-      - name: Set DOCKER_HOST for client commands
-        run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
+      - name: Point client at DinD
+        run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> "$GITHUB_ENV"
 
-      - name: Wait for DinD Daemon to be ready
+      - name: Wait for DinD to be healthy
         run: |
-          echo "Waiting for Docker-in-Docker daemon..."
-          timeout 60s bash -c 'until docker exec dind-daemon docker info &>/dev/null; do echo -n "."; sleep 1; done'
-          echo "Docker-in-Docker is ready!"
+          echo -n "Waiting for Docker-in-Docker"
+          timeout 200s bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" dind-daemon 2>/dev/null)" = "healthy" ]; do echo -n "."; sleep 2; done'
+          echo
+          docker info
           
       # --- END: NEW ROBUST STEPS ---
 
