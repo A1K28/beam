@@ -80,45 +80,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
-      - name: Check space and inodes
-        if: always()
-        run: |
-          echo "== df -h /run =="
-          df -h /run || true
-          echo "== df -i /run (inodes) =="
-          df -i /run || true
-
-      # --- START: NEW ROBUST STEPS ---
-
-      - name: Start Docker-in-Docker (TCP 2375, no TLS)
-        run: |
-          docker rm -f dind-daemon 2>/dev/null || true
-          docker run -d --privileged --name dind-daemon \
-            --cgroupns=host \
-            -e DOCKER_TLS_CERTDIR= \
-            -p 127.0.0.1:2375:2375 \
-            -v dind-storage:/var/lib/docker \
-            docker:dind \
-              --host=tcp://0.0.0.0:2375 \
-              --host=unix:///var/run/docker.sock \
-              --storage-driver=overlay2
-
-      - name: Point client at DinD
-        run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> "$GITHUB_ENV"
-
-      - name: Wait for dockerd (and show logs if it fails)
-        run: |
-          echo -n "Waiting for Docker-in-Docker"
-          if ! timeout 120s bash -c 'until docker -H tcp://127.0.0.1:2375 info >/dev/null 2>&1; do echo -n "."; sleep 2; done'; then
-            echo
-            echo "=== dind logs ==="
-            docker logs dind-daemon || true
-            exit 1
-          fi
-          echo
-          docker -H tcp://127.0.0.1:2375 info
-          
-      # --- END: NEW ROBUST STEPS ---
+      - uses: ./.github/actions/dind-up-action
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
@@ -126,8 +88,6 @@ jobs:
           java-version: default
           python-version: default
       - name: Run preCommitPyCoverage
-        env:
-          TMPDIR: /home/docker/actions-runner/_work/tmp
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
