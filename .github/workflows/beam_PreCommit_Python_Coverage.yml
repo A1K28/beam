@@ -80,7 +80,17 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
+      - name: Print docker host before
+        run: |
+          echo "DOCKER_HOST=$DOCKER_HOST"
+          docker info --format 'Operating System: {{.OperatingSystem}}'
+
       - uses: ./.github/actions/dind-up-action
+
+      - name: Print docker host after
+        run: |
+          echo "DOCKER_HOST=$DOCKER_HOST"
+          docker info --format 'Operating System: {{.OperatingSystem}}'
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
