@@ -84,6 +84,7 @@ jobs:
         with:
           java-version: default
           python-version: default
+          
       - name: Run preCommitPyCoverage
         env:
           TMPDIR: /home/docker/actions-runner/_work/tmp
