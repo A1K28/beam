@@ -50,13 +50,14 @@ env:
   GRADLE_ENTERPRISE_CACHE_USERNAME: ${{ secrets.GE_CACHE_USERNAME }}
   GRADLE_ENTERPRISE_CACHE_PASSWORD: ${{ secrets.GE_CACHE_PASSWORD }}
   ALLOYDB_PASSWORD: ${{ secrets.ALLOYDB_PASSWORD }}
-  TMPDIR: ${{ runner.temp }}/docker-tmp
 
 jobs:
   beam_PostCommit_Python:
     name: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 240
+    env:
+      TMPDIR: ${{ runner.temp }}/docker-tmp
     strategy:
       fail-fast: false
       matrix:
