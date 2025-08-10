@@ -90,7 +90,7 @@ jobs:
           docker run --privileged --name dind-daemon -d \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
             -p 127.0.0.1:2375:2375 \
-            docker:dind --storage-driver=overlay2
+            docker:dind --storage-driver=vfs
 
       - name: Check DinD Container Status and Logs
         if: always()
