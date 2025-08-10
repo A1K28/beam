@@ -16,55 +16,7 @@
 # under the License.
 
 name: "Start DinD (exec-root on disk)"
-description: "Launch docker:dind bound to TCP and wait until healthy; moves exec-root off /run for tiny-/run environments."
-author: "you"
-
-inputs:
-  container-name:
-    description: "Name for the DinD container"
-    default: dind-daemon
-  bind-address:
-    description: "Host address to bind dockerd TCP"
-    default: 127.0.0.1
-  port:
-    description: "Dockerd TCP port"
-    default: "2375"
-  storage-volume:
-    description: "Named volume for /var/lib/docker (images/layers)"
-    default: dind-storage
-  execroot-volume:
-    description: "Named volume for /execroot (dockerd runtime state)"
-    default: dind-execroot
-  tmpfs-run-size:
-    description: "Size of /run tmpfs inside DinD"
-    default: 1g
-  tmpfs-varrun-size:
-    description: "Size of /var/run tmpfs inside DinD"
-    default: 1g
-  storage-driver:
-    description: "Docker storage driver"
-    default: overlay2
-  health-interval:
-    description: "Container healthcheck interval"
-    default: 2s
-  health-retries:
-    description: "Container healthcheck retries"
-    default: "60"
-  health-start-period:
-    description: "Container healthcheck start period"
-    default: 10s
-  wait-timeout:
-    description: "Seconds to wait for DinD to become healthy"
-    default: "180"
-  additional-dockerd-args:
-    description: "Extra args appended to dockerd (optional)"
-    default: ""
-
-outputs:
-  docker-host:
-    description: "DOCKER_HOST to use for subsequent steps"
-    value: ${{ steps.set-env.outputs.docker_host }}
-
+description: "Launch docker:dind on TCP and wait until ready; moves exec-root off /run."
 runs:
   using: "composite"
   steps:
@@ -77,41 +29,90 @@ runs:
     - name: Start docker:dind
       shell: bash
       run: |
-        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
-        docker run -d --privileged --name "${{ inputs.container-name }}" \
+        NAME="${{ inputs.container-name || 'dind-daemon' }}"
+        BIND="${{ inputs.bind-address || '127.0.0.1' }}"
+        PORT="${{ inputs.port || '2375' }}"
+        SD="${{ inputs.storage-driver || 'overlay2' }}"
+        TRS="${{ inputs.tmpfs-run-size || '1g' }}"
+        TVRS="${{ inputs.tmpfs-varrun-size || '1g' }}"
+        HI="${{ inputs.health-interval || '2s' }}"
+        HR="${{ inputs.health-retries || '60' }}"
+        HSP="${{ inputs.health-start-period || '10s' }}"
+        EXTRA="${{ inputs.additional-dockerd-args }}"
+        docker rm -f "$NAME" 2>/dev/null || true
+        docker run -d --privileged --name "$NAME" \
           --cgroupns=host \
           -e DOCKER_TLS_CERTDIR= \
-          -p ${{ inputs.bind-address }}:${{ inputs.port }}:${{ inputs.port }} \
-          -v "${{ inputs.storage-volume }}:/var/lib/docker" \
-          -v "${{ inputs.execroot-volume }}:/execroot" \
-          --tmpfs /run:rw,exec,size=${{ inputs.tmpfs-run-size }} \
-          --tmpfs /var/run:rw,exec,size=${{ inputs.tmpfs-varrun-size }} \
+          -p ${BIND}:${PORT}:${PORT} \
+          -v "${{ inputs.storage-volume || 'dind-storage' }}:/var/lib/docker" \
+          -v "${{ inputs.execroot-volume || 'dind-execroot' }}:/execroot" \
+          --tmpfs /run:rw,exec,size=${TRS} \
+          --tmpfs /var/run:rw,exec,size=${TVRS} \
           --health-cmd='docker info > /dev/null' \
-          --health-interval=${{ inputs.health-interval }} \
-          --health-retries=${{ inputs.health-retries }} \
-          --health-start-period=${{ inputs.health-start-period }} \
+          --health-interval=${HI} \
+          --health-retries=${HR} \
+          --health-start-period=${HSP} \
           docker:dind \
-            --host=tcp://0.0.0.0:${{ inputs.port }} \
+            --host=tcp://0.0.0.0:${PORT} \
             --host=unix:///var/run/docker.sock \
-            --storage-driver=${{ inputs.storage-driver }} \
-            --exec-root=/execroot ${{ inputs.additional-dockerd-args }}
+            --storage-driver=${SD} \
+            --exec-root=/execroot ${EXTRA}
 
-    - id: set-env
-      name: Export DOCKER_HOST
+    - name: Wait for DinD (TCP probe; show logs if it fails)
       shell: bash
       run: |
-        echo "DOCKER_HOST=tcp://${{ inputs.bind-address }}:${{ inputs.port }}" >> "$GITHUB_ENV"
-        echo "docker_host=tcp://${{ inputs.bind-address }}:${{ inputs.port }}" >> "$GITHUB_OUTPUT"
-
-    - name: Wait for DinD (and show logs if it fails)
-      shell: bash
-      run: |
+        NAME="${{ inputs.container-name || 'dind-daemon' }}"
+        HOST="${{ inputs.bind-address || '127.0.0.1' }}"
+        PORT="${{ inputs.port || '2375' }}"
+        TIMEOUT="${{ inputs.wait-timeout || '180' }}"
         echo -n "Waiting for Docker-in-Docker"
-        if ! timeout ${{ inputs.wait-timeout }}s bash -c 'until [ "$(docker inspect -f "{{.State.Health.Status}}" "${{ inputs.container-name }}" 2>/dev/null)" = "healthy" ]; do echo -n "."; sleep 2; done'; then
+        if ! timeout ${TIMEOUT}s bash -c 'until docker -H "tcp://'"${HOST}"':'"${PORT}"'" info >/dev/null 2>&1; do echo -n "."; sleep 2; done'; then
           echo
           echo "=== dind logs ==="
-          docker logs "${{ inputs.container-name }}" || true
+          # Use host daemon explicitly for logs
+          docker -H unix:///var/run/docker.sock logs "$NAME" || true
           exit 1
         fi
         echo
-        docker -H "tcp://${{ inputs.bind-address }}:${{ inputs.port }}" info
+        docker -H "tcp://${HOST}:${PORT}" info
+
+    - id: set-env
+      name: Export DOCKER_HOST for subsequent steps
+      shell: bash
+      run: |
+        HOST="${{ inputs.bind-address || '127.0.0.1' }}"
+        PORT="${{ inputs.port || '2375' }}"
+        echo "DOCKER_HOST=tcp://${HOST}:${PORT}" >> "$GITHUB_ENV"
+        echo "docker_host=tcp://${HOST}:${PORT}" >> "$GITHUB_OUTPUT"
+
+inputs:
+  container-name:
+    default: dind-daemon
+  bind-address:
+    default: 127.0.0.1
+  port:
+    default: "2375"
+  storage-volume:
+    default: dind-storage
+  execroot-volume:
+    default: dind-execroot
+  tmpfs-run-size:
+    default: 1g
+  tmpfs-varrun-size:
+    default: 1g
+  storage-driver:
+    default: overlay2
+  health-interval:
+    default: 2s
+  health-retries:
+    default: "60"
+  health-start-period:
+    default: 10s
+  wait-timeout:
+    default: "180"
+  additional-dockerd-args:
+    default: ""
+
+outputs:
+  docker-host:
+    value: ${{ steps.set-env.outputs.docker_host }}
