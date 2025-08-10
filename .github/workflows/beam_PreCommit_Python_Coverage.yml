@@ -80,31 +80,32 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
-      - name: Start Docker-in-Docker
+      # --- START: NEW ROBUST STEPS ---
+
+      - name: Start Docker-in-Docker Service
         run: |
+          # We still start the DinD daemon in the background
           docker run --privileged --name dind-daemon -d \
             -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
-            -p 127.0.0.1:2375:2375 \
             docker:dind --storage-driver=overlay2
 
-      - name: Set DOCKER_HOST to connect to the new daemon
-        run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
-
-      # --- ADD THIS NEW DEBUGGING STEP ---
-      - name: Check DinD Container Status and Logs
-        if: always()
+      - name: Run Build inside a Linked Container
         run: |
-          echo "--- Checking status of all Docker containers ---"
-          docker ps -a
-          echo "--- Displaying logs for the dind-daemon container ---"
-          # This command might fail if the container never started, which is okay.
-          docker logs dind-daemon || echo "dind-daemon container not found or no logs available."
+          # Wait for the DinD daemon to be ready before we try to use it
+          echo "Waiting for DinD service..."
+          timeout 60s bash -c 'until docker --host=tcp://dind-daemon:2375 info &>/dev/null; do echo -n "."; sleep 1; done'
+          
+          echo "DinD is ready. Running build..."
+          # Now, run the Gradle build inside a container that has the necessary tools
+          # and is linked to our DinD service.
+          docker run --rm \
+            --link dind-daemon:docker \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            gradle:8.5.0-jdk11 \
+            ./gradlew :sdks:python:test-suites:tox:py39:preCommitPyCoverage
 
-      - name: Wait for Docker-in-Docker to be ready
-        run: |
-          echo "Waiting for the new Docker daemon..."
-          timeout 30s bash -c 'until docker info &>/dev/null; do echo -n "."; sleep 1; done'
-          echo "Docker-in-Docker is ready!"
+      # --- END: NEW ROBUST STEPS ---
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
