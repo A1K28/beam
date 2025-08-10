@@ -92,6 +92,15 @@ jobs:
             -p 127.0.0.1:2375:2375 \
             docker:dind --storage-driver=overlay2
 
+      - name: Check DinD Container Status and Logs
+        if: always()
+        run: |
+          echo "--- Checking status of all Docker containers ---"
+          docker ps -a
+          echo "--- Displaying logs for the dind-daemon container ---"
+          # This command might fail if the container never started, which is okay.
+          docker logs dind-daemon || echo "dind-daemon container not found or no logs available."
+
       - name: Set DOCKER_HOST to connect to the new daemon
         run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
 
