@@ -79,11 +79,29 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
-      - name: Set and create temporary directory
+
+      - name: Start Docker-in-Docker
         run: |
-          TEMP_PATH="${{ runner.temp }}/docker-tmp"
-          mkdir -p "$TEMP_PATH"
-          echo "TMPDIR=$TEMP_PATH" >> $GITHUB_ENV
+          # Use a directory on the large workspace partition for the new daemon's data
+          mkdir -p ${{ github.workspace }}/dind-storage
+
+          # Start a new, privileged Docker daemon in a container.
+          # We mount our workspace directory as its data root and expose its port.
+          docker run --privileged --name dind-daemon -d \
+            -v ${{ github.workspace }}/dind-storage:/var/lib/docker \
+            -p 127.0.0.1:2375:2375 \
+            docker:dind --storage-driver=overlay2
+
+      - name: Set DOCKER_HOST to connect to the new daemon
+        run: echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
+
+      - name: Wait for Docker-in-Docker to be ready
+        run: |
+          echo "Waiting for the new Docker daemon..."
+          timeout 30s bash -c 'until docker info &>/dev/null; do echo -n "."; sleep 1; done'
+          echo "Docker-in-Docker is ready!"
+          docker info
+
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
