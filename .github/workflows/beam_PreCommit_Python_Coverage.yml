@@ -87,7 +87,6 @@ jobs:
 
       - uses: ./.github/actions/dind-up-action
         id: dind
-        
       - name: Print docker host after
         run: |
           echo "DOCKER_HOST=$DOCKER_HOST"
