@@ -98,8 +98,6 @@ jobs:
           echo "DOCKER_HOST=$DOCKER_HOST"
           docker info --format 'Operating System: {{.OperatingSystem}}'
       - name: Show DinD /run usage after
-        env:
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
         run: |
           docker exec dind-daemon df -h /run /var/run || true
           docker exec dind-daemon df -i /run /var/run || true
