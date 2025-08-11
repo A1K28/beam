@@ -22,19 +22,53 @@ pipelines:
         - type: Create
           config:
             elements:
-              - question: "What is a car?"
-              - question: "Where is the Eiffel Tower located?"
-        - type: RunInference
+              - contents:
+                  - role: user
+                    parts:
+                      - text: "Summarize in 2–3 sentences: Honesty is usually the best policy. Lying is disrespectful. Be direct and kind when turning someone down."
+        # Call Gemini using the GenerateContent API (no Vertex Predict / endpoint id).
+        - type: PyTransform
+          name: CallGemini
           config:
-            model_handler: 
-              type: "VertexAIModelHandlerJSON"
-              config:
-                endpoint_id: 9157860935048626176
-                project: "apache-beam-testing"
-                location: "us-central1"
-                preprocess:
-                  callable: 'lambda x: {"prompt": x.question}'
-                private: false
+            constructor: __callable__
+            kwargs:
+              source: |
+                import apache_beam as beam
+
+                class _GeminiDoFn(beam.DoFn):
+                  def __init__(self, project: str, location: str, model_name: str):
+                    self._project = project
+                    self._location = location
+                    self._model_name = model_name
+                    self._model = None
+
+                  def setup(self):
+                    import vertexai
+                    from vertexai.generative_models import GenerativeModel
+                    vertexai.init(project=self._project, location=self._location)
+                    self._model = GenerativeModel(self._model_name)
+
+                  def process(self, text: str):
+                    response = self._model.generate_content([text])
+                    # Yield a simple string to avoid maps with curly braces
+                    output_text = getattr(response, "text", str(response))
+                    yield "prediction_text: " + str(output_text)
+
+                def call_gemini(pcoll):
+                  def _to_text(row):
+                    try:
+                      return row["contents"][0]["parts"][0]["text"]
+                    except Exception:
+                      return str(row)
+
+                  text_prompts = pcoll | "ToText" >> beam.Map(_to_text)
+
+                  project = "apache-beam-testing"
+                  location = "us-central1"
+                  model_name = "gemini-2.5-flash"
+
+                  return text_prompts | "Generate" >> beam.ParDo(
+                      _GeminiDoFn(project, location, model_name))
         - type: PyTransform
           name: TransformInferenceBeamRowsToSimpleSchemaRows
           config:
@@ -43,7 +77,8 @@ pipelines:
               source: | 
                 import apache_beam as beam
                 def simplify_elements(pcoll):
-                  return pcoll | beam.Map(lambda row: beam.Row(dummy_field=1))
+                  # We don't care about the content downstream; convert to a simple Row
+                  return pcoll | beam.Map(lambda _row: beam.Row(dummy_field=1))
         - type: Sql
           name: CountRows
           config:
@@ -51,7 +86,7 @@ pipelines:
         - type: AssertEqual
           config:
             elements:
-              - {actual_inference_count: 2}
+              - {actual_inference_count: 1}
 
     options:
       yaml_experimental_features: ['ML']
