@@ -26,9 +26,20 @@ runs:
         echo "== df -h /run ==" && df -h /run || true
         echo "== df -i /run (inodes) ==" && df -i /run || true
 
+    - name: Prune old dangling ephemeral DinD volumes (safe)
+      if: ${{ inputs.auto-prune-dangling == 'true' }}
+      shell: bash
+      run: |
+        # Remove only volumes created by this action in previous runs that are not in use
+        docker volume ls -q \
+          --filter "label=com.github.dind=1" \
+          --filter "label=com.github.repo=${GITHUB_REPOSITORY}" \
+          --filter "dangling=true" | xargs -r docker volume rm || true
+
     - name: Start docker:dind
       shell: bash
       run: |
+        set -euo pipefail
         NAME="${{ inputs.container-name || 'dind-daemon' }}"
         BIND="${{ inputs.bind-address || '127.0.0.1' }}"
         PORT="${{ inputs.port || '2375' }}"
@@ -39,15 +50,48 @@ runs:
         HR="${{ inputs.health-retries || '60' }}"
         HSP="${{ inputs.health-start-period || '10s' }}"
         EXTRA="${{ inputs.additional-dockerd-args }}"
-        docker rm -f "$NAME" 2>/dev/null || true
+
+        # Decide on volume names: ephemeral (default) or fixed
+        if [[ "${{ inputs.ephemeral-volumes }}" == "true" ]]; then
+          SUFFIX="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"
+          STORAGE_VOL="dind-storage-${SUFFIX}"
+          EXECROOT_VOL="dind-execroot-${SUFFIX}"
+        else
+          STORAGE_VOL="${{ inputs.storage-volume || 'dind-storage' }}"
+          EXECROOT_VOL="${{ inputs.execroot-volume || 'dind-execroot' }}"
+        fi
+
+        # Pre-create volumes with labels so they’re recognizable and safe to prune later
+        docker volume create \
+          --name "${STORAGE_VOL}" \
+          --label "com.github.dind=1" \
+          --label "com.github.repo=${GITHUB_REPOSITORY}" \
+          --label "com.github.run_id=${GITHUB_RUN_ID}" \
+          --label "com.github.job=${GITHUB_JOB}" >/dev/null
+
+        docker volume create \
+          --name "${EXECROOT_VOL}" \
+          --label "com.github.dind=1" \
+          --label "com.github.repo=${GITHUB_REPOSITORY}" \
+          --label "com.github.run_id=${GITHUB_RUN_ID}" \
+          --label "com.github.job=${GITHUB_JOB}" >/dev/null
+
+        # Nuke any prior DinD container with same NAME and its anonymous volumes
+        docker rm -f -v "$NAME" 2>/dev/null || true
+
+        # Launch DinD
         docker run -d --privileged --name "$NAME" \
           --cgroupns=host \
           -e DOCKER_TLS_CERTDIR= \
           -p ${BIND}:${PORT}:${PORT} \
-          -v "${{ inputs.storage-volume || 'dind-storage' }}:/var/lib/docker" \
-          -v "${{ inputs.execroot-volume || 'dind-execroot' }}:/execroot" \
+          -v "${STORAGE_VOL}:/var/lib/docker" \
+          -v "${EXECROOT_VOL}:/execroot" \
           --tmpfs /run:rw,exec,size=${TRS} \
           --tmpfs /var/run:rw,exec,size=${TVRS} \
+          --label "com.github.dind=1" \
+          --label "com.github.repo=${GITHUB_REPOSITORY}" \
+          --label "com.github.run_id=${GITHUB_RUN_ID}" \
+          --label "com.github.job=${GITHUB_JOB}" \
           --health-cmd='docker info > /dev/null' \
           --health-interval=${HI} \
           --health-retries=${HR} \
@@ -58,9 +102,16 @@ runs:
             --storage-driver=${SD} \
             --exec-root=/execroot ${EXTRA}
 
+        # Persist the resolved volume names for later steps/outputs
+        {
+          echo "STORAGE_VOL=${STORAGE_VOL}"
+          echo "EXECROOT_VOL=${EXECROOT_VOL}"
+        } >> "$GITHUB_ENV"
+
     - name: Wait for DinD (TCP probe; show logs if it fails)
       shell: bash
       run: |
+        set -euo pipefail
         NAME="${{ inputs.container-name || 'dind-daemon' }}"
         HOST="${{ inputs.bind-address || '127.0.0.1' }}"
         PORT="${{ inputs.port || '2375' }}"
@@ -69,19 +120,20 @@ runs:
         if ! timeout ${TIMEOUT}s bash -c 'until docker -H "tcp://'"${HOST}"':'"${PORT}"'" info >/dev/null 2>&1; do echo -n "."; sleep 2; done'; then
           echo
           echo "=== dind logs ==="
-          # Use host daemon explicitly for logs
           docker -H unix:///var/run/docker.sock logs "$NAME" || true
           exit 1
         fi
         echo
         docker -H "tcp://${HOST}:${PORT}" info
-    
+
     - id: set-output
       shell: bash
       run: |
         HOST="${{ inputs.bind-address || '127.0.0.1' }}"
         PORT="${{ inputs.port || '2375' }}"
         echo "docker_host=tcp://${HOST}:${PORT}" >> "$GITHUB_OUTPUT"
+        echo "storage_volume=${STORAGE_VOL:-}" >> "$GITHUB_OUTPUT"
+        echo "execroot_volume=${EXECROOT_VOL:-}" >> "$GITHUB_OUTPUT"
 
     - id: maybe-export
       if: ${{ inputs.export-gh-env == 'true' }}
@@ -96,10 +148,17 @@ inputs:
     default: 127.0.0.1
   port:
     default: "2375"
+  # If ephemeral-volumes is true (default), these are ignored.
   storage-volume:
     default: dind-storage
   execroot-volume:
     default: dind-execroot
+  ephemeral-volumes:
+    description: "Generate unique per-run volume names (recommended)"
+    default: "true"
+  auto-prune-dangling:
+    description: "Prune dangling ephemeral DinD volumes from previous runs"
+    default: "true"
   tmpfs-run-size:
     default: 1g
   tmpfs-varrun-size:
@@ -123,3 +182,7 @@ inputs:
 outputs:
   docker-host:
     value: ${{ steps.set-output.outputs.docker_host }}
+  storage-volume:
+    value: ${{ steps.set-output.outputs.storage_volume }}
+  execroot-volume:
+    value: ${{ steps.set-output.outputs.execroot_volume }}

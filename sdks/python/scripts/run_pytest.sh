@@ -31,13 +31,6 @@ envname=${1?First argument required: suite base name}
 posargs=$2
 pytest_args=$3
 
-# Ensure a unique Testcontainers session per pytest worker
-if [ -n "${PYTEST_XDIST_WORKER:-}" ]; then
-  export TESTCONTAINERS_SESSION_ID="beam-${GITHUB_RUN_ID:-local}-${PYTEST_XDIST_WORKER}"
-else
-  export TESTCONTAINERS_SESSION_ID="beam-${GITHUB_RUN_ID:-local}-$$"
-fi
-
 # strip leading/trailing quotes from posargs because it can get double quoted as
 # its passed through.
 if [[ $posargs == '"'*'"' ]]; then
