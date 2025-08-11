@@ -98,7 +98,6 @@ jobs:
         with:
           java-version: default
           python-version: default
-
       - name: Quick ping to DinD
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
