@@ -22,18 +22,22 @@ pipelines:
         - type: Create
           config:
             elements:
-              - question: "What is a car?"
-              - question: "Where is the Eiffel Tower located?"
+              - contents:
+                  - role: user
+                    parts:
+                      - text: "Summarize in 2–3 sentences: Honesty is usually the best policy. Lying is disrespectful. Be direct and kind when turning someone down."
         - type: RunInference
           config:
             model_handler: 
               type: "VertexAIModelHandlerJSON"
               config:
-                endpoint_id: 9157860935048626176
+                endpoint_id: 7938230960472981504
                 project: "apache-beam-testing"
                 location: "us-central1"
                 preprocess:
-                  callable: 'lambda x: {"prompt": x.question}'
+                  # Send only the chat payload expected by GenerateContent
+                  callable: |-
+                    lambda x: {"contents": x.contents}
                 private: false
         - type: PyTransform
           name: TransformInferenceBeamRowsToSimpleSchemaRows
@@ -51,7 +55,7 @@ pipelines:
         - type: AssertEqual
           config:
             elements:
-              - {actual_inference_count: 2}
+              - {actual_inference_count: 1}
 
     options:
       yaml_experimental_features: ['ML']
