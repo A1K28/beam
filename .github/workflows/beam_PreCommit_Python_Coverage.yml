@@ -108,6 +108,7 @@ jobs:
       - name: Run preCommitPyCoverage
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TOX_TESTENV_PASSENV: DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
