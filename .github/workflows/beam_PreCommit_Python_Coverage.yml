@@ -105,7 +105,7 @@ jobs:
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
           TESTCONTAINERS_RYUK_DISABLED: "true"
-          TOX_TESTENV_PASSENV: DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH TESTCONTAINERS_RYUK_DISABLED
+          TOX_TESTENV_PASSENV: "DOCKER_* TESTCONTAINERS_*"
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
