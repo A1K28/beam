@@ -84,7 +84,6 @@ jobs:
         run: |
           echo "DOCKER_HOST=$DOCKER_HOST"
           docker info --format 'Operating System: {{.OperatingSystem}}'
-
       - uses: ./.github/actions/dind-up-action
         id: dind
       - name: Print docker host after
