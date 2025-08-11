@@ -97,6 +97,7 @@ jobs:
         run: |
           echo "DOCKER_HOST=$DOCKER_HOST"
           docker info --format 'Operating System: {{.OperatingSystem}}'
+
           
       - name: Show DinD /run usage after
         run: |
