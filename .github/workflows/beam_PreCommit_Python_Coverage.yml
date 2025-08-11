@@ -92,7 +92,6 @@ jobs:
         run: |
           echo "DOCKER_HOST=$DOCKER_HOST"
           docker info --format 'Operating System: {{.OperatingSystem}}'
-
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
