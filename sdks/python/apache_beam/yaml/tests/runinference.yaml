@@ -26,19 +26,53 @@ pipelines:
                   - role: user
                     parts:
                       - text: "Summarize in 2–3 sentences: Honesty is usually the best policy. Lying is disrespectful. Be direct and kind when turning someone down."
-        - type: RunInference
+        # Call Gemini using the GenerateContent API (no Vertex Predict / endpoint id).
+        - type: PyTransform
+          name: CallGemini
           config:
-            model_handler: 
-              type: "VertexAIModelHandlerJSON"
-              config:
-                endpoint_id: 7938230960472981504
-                project: "apache-beam-testing"
-                location: "us-central1"
-                preprocess:
-                  # Send only the chat payload expected by GenerateContent
-                  callable: |-
-                    lambda x: {"contents": x.contents}
-                private: false
+            constructor: __callable__
+            kwargs:
+              source: |
+                import apache_beam as beam
+
+                # ParDo that initializes Vertex AI once per worker and calls generate_content.
+                class _GeminiDoFn(beam.DoFn):
+                  def __init__(self, project: str, location: str, model_name: str):
+                    self._project = project
+                    self._location = location
+                    self._model_name = model_name
+                    self._model = None
+
+                  def setup(self):
+                    # Lazy import to avoid dependency at pipeline construction time
+                    import vertexai
+                    from vertexai.generative_models import GenerativeModel
+                    vertexai.init(project=self._project, location=self._location)
+                    self._model = GenerativeModel(self._model_name)
+
+                  def process(self, text: str):
+                    # text is a plain prompt string
+                    resp = self._model.generate_content([text])
+                    # Yield the response text (you could yield the full object if preferred)
+                    yield {"prediction_text": getattr(resp, "text", str(resp))}
+
+                def call_gemini(pcoll):
+                  # Extract a single text prompt from your chat-shaped "contents"
+                  def _to_text(row):
+                    try:
+                      # Expecting: {"contents":[{"role":"user","parts":[{"text":"..."}]}]}
+                      return row["contents"][0]["parts"][0]["text"]
+                    except Exception:
+                      return str(row)
+
+                  text_prompts = pcoll | "ToText" >> beam.Map(_to_text)
+
+                  # Configure your project/region/model here
+                  project = "apache-beam-testing"
+                  location = "us-central1"
+                  model_name = "gemini-2.5-flash"
+
+                  return text_prompts | "Generate" >> beam.ParDo(_GeminiDoFn(project, location, model_name))
         - type: PyTransform
           name: TransformInferenceBeamRowsToSimpleSchemaRows
           config:
@@ -47,7 +81,8 @@ pipelines:
               source: | 
                 import apache_beam as beam
                 def simplify_elements(pcoll):
-                  return pcoll | beam.Map(lambda row: beam.Row(dummy_field=1))
+                  # We don't care about the content downstream; convert to a simple Row
+                  return pcoll | beam.Map(lambda _row: beam.Row(dummy_field=1))
         - type: Sql
           name: CountRows
           config:
