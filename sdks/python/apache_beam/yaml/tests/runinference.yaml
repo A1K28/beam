@@ -35,7 +35,6 @@ pipelines:
               source: |
                 import apache_beam as beam
 
-                # ParDo that initializes Vertex AI once per worker and calls generate_content.
                 class _GeminiDoFn(beam.DoFn):
                   def __init__(self, project: str, location: str, model_name: str):
                     self._project = project
@@ -44,35 +43,32 @@ pipelines:
                     self._model = None
 
                   def setup(self):
-                    # Lazy import to avoid dependency at pipeline construction time
                     import vertexai
                     from vertexai.generative_models import GenerativeModel
                     vertexai.init(project=self._project, location=self._location)
                     self._model = GenerativeModel(self._model_name)
 
                   def process(self, text: str):
-                    # text is a plain prompt string
-                    resp = self._model.generate_content([text])
-                    # Yield the response text (you could yield the full object if preferred)
-                    yield {"prediction_text": getattr(resp, "text", str(resp))}
+                    response = self._model.generate_content([text])
+                    # Yield a simple string to avoid maps with curly braces
+                    output_text = getattr(response, "text", str(response))
+                    yield "prediction_text: " + str(output_text)
 
                 def call_gemini(pcoll):
-                  # Extract a single text prompt from your chat-shaped "contents"
                   def _to_text(row):
                     try:
-                      # Expecting: {"contents":[{"role":"user","parts":[{"text":"..."}]}]}
                       return row["contents"][0]["parts"][0]["text"]
                     except Exception:
                       return str(row)
 
                   text_prompts = pcoll | "ToText" >> beam.Map(_to_text)
 
-                  # Configure your project/region/model here
                   project = "apache-beam-testing"
                   location = "us-central1"
                   model_name = "gemini-2.5-flash"
 
-                  return text_prompts | "Generate" >> beam.ParDo(_GeminiDoFn(project, location, model_name))
+                  return text_prompts | "Generate" >> beam.ParDo(
+                      _GeminiDoFn(project, location, model_name))
         - type: PyTransform
           name: TransformInferenceBeamRowsToSimpleSchemaRows
           config:
