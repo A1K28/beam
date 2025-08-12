@@ -33,8 +33,11 @@ pipelines:
                 project: "apache-beam-testing"
                 location: "us-central1"
                 preprocess:
-                  callable: 'lambda x: {"instances":[{"prompt": x.question}], "parameters":{"max_tokens":100,"temperature":0.2}}'
+                  callable: 'lambda x: {"prompt": x.question}'
                 private: false
+            inference_args:
+              max_tokens: 100
+              temperature: 0.2
         - type: PyTransform
           name: TransformInferenceBeamRowsToSimpleSchemaRows
           config:
