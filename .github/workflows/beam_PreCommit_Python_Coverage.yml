@@ -127,6 +127,82 @@ jobs:
           print("Ryuk primed")
           PY
 
+      #################################################
+      # Show which Docker we’ll use and basic health
+      - name: DinD info
+        run: |
+          echo "Runner DOCKER_HOST=${DOCKER_HOST:-<empty>}"
+          echo "DinD DOCKER_HOST=${{ steps.dind.outputs.docker-host }}"
+          docker -H ${{ steps.dind.outputs.docker-host }} info --format 'ServerVersion={{.ServerVersion}} RootDir={{.DockerRootDir}}'
+
+      # Get the DinD container IP (needed when using DinD over TCP)
+      - name: Discover DinD IP
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock   # talk to the host daemon
+        run: |
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dind-daemon)
+          echo "DIND_IP=$ip"
+          echo "DIND_IP=$ip" >> $GITHUB_ENV
+
+      # Smoke test plain Docker port mapping via DinD (no Testcontainers yet)
+      - name: Port mapping smoke test (redis via plain docker)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+        run: |
+          docker pull redis:7.2.4
+          cid=$(docker run -d -p 0:6379 --name redis-smoke redis:7.2.4)
+          hostport=$(docker port redis-smoke 6379/tcp | sed 's/.*://')
+          echo "REDIS_HOSTPORT=$hostport"
+          # Try TCP connect from the runner to DinD's IP:hostport
+          timeout 5 bash -lc 'exec 3<>/dev/tcp/$DIND_IP/'"$hostport" '&& echo tcp-ok || (echo tcp-fail; exit 1)'
+          docker rm -f "$cid"
+
+      # Testcontainers check (runner Python): start/stop a tiny container using the right overrides
+      - name: Testcontainers self-check (runner)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
+        run: |
+          python -m pip install -q --upgrade pip testcontainers
+          docker -H ${{ steps.dind.outputs.docker-host }} pull alpine:3.19
+          python - <<'PY'
+          from testcontainers.core.waiting_utils import config
+          print("TC(waiting) runner:", config.timeout, config.max_tries, config.sleep_time)
+          from testcontainers.core.container import DockerContainer
+          c = DockerContainer("alpine:3.19").with_command("true")
+          c.start(); c.stop()
+          print("TC(container) runner: ok")
+          PY
+          # Show a Ryuk if started during the check (not required, just informative)
+          docker -H ${{ steps.dind.outputs.docker-host }} ps -a --filter name=testcontainers-ryuk || true
+
+      # Create the tox env only (no tests), then run the same TC check INSIDE the venv
+      - name: Create tox env only (no tests)
+        run: |
+          python -m pip install -q tox
+          tox -e py39-cloudcoverage --notest -vv
+
+      - name: Testcontainers self-check (inside tox venv)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
+          TC_TIMEOUT: "120"
+          TC_MAX_TRIES: "120"
+          TC_SLEEP_TIME: "1"
+        run: |
+          tox -e py39-cloudcoverage -- python - <<'PY'
+          from testcontainers.core.waiting_utils import config
+          print("TC(waiting) tox:", config.timeout, config.max_tries, config.sleep_time)
+          from testcontainers.core.container import DockerContainer
+          c = DockerContainer("alpine:3.19").with_command("true")
+          c.start(); c.stop()
+          print("TC(container) tox: ok")
+          PY
+
+      #################################################
+
       # Quick probe: what are the current Testcontainers timeouts?
       - name: Probe Testcontainers waiting config
         env:
