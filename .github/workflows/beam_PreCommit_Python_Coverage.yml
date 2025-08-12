@@ -112,6 +112,8 @@ jobs:
           docker -H ${{ steps.dind.outputs.docker-host }} run --rm alpine echo OK
 
       - name: Prime Ryuk (avoid parallel race)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
         run: |
           # make sure testcontainers is available in this step
           python -m pip install -q --upgrade pip testcontainers
