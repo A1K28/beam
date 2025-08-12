@@ -111,12 +111,27 @@ jobs:
         run: |
           docker -H ${{ steps.dind.outputs.docker-host }} run --rm alpine echo OK
 
+      - name: Prime Ryuk (avoid parallel race)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+        run: |
+          python -m pip install -q --upgrade pip testcontainers
+          python - <<'PY'
+          from testcontainers.redis import RedisContainer
+          c = RedisContainer("redis:7.2.4")
+          c.start(); c.stop()
+          print("Ryuk started once; workers will reuse it.")
+          PY
+
       # 4) Run tests
       - name: Run preCommitPyCoverage
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-          TOX_TESTENV_PASSENV: "*"
-          TESTCONTAINERS_RYUK_DISABLED: "true"
+          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*"
+          # Ryuk ON (omit entirely or set to "false")
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          # Optional: some CI needs privileged Ryuk
+          # TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED: "true"
           PYTEST_ADDOPTS: "--dist=loadfile -n 4"
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
