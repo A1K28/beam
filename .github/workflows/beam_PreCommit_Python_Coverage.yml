@@ -93,6 +93,7 @@ jobs:
           tmpfs-run-size: 4g        # was 1g
           tmpfs-varrun-size: 8g     # was 1g
           additional-dockerd-args: "--log-level=info"
+          export-gh-env: true
 
       # 2) Quick ping to confirm DinD is reachable
       - name: Quick ping to DinD
@@ -106,16 +107,16 @@ jobs:
           docker -H ${{ steps.dind.outputs.docker-host }} system prune -af --volumes || true
           docker -H ${{ steps.dind.outputs.docker-host }} image prune -af || true
 
-      # 4) Run tests: FORCE envs into tox without editing tox.ini
+      - name: Pre-test probe DinD
+        run: |
+          docker -H ${{ steps.dind.outputs.docker-host }} run --rm alpine echo OK
+
+      # 4) Run tests
       - name: Run preCommitPyCoverage
         env:
-          # Make every child (tox + pytest + testcontainers) talk to DinD
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}            # tcp://127.0.0.1:2375
-          # Crucial: override tox passenv from the workflow only (works even when envs override passenv)
-          TOX_TESTENV_PASSENV: "*"                                      # or "DOCKER_*,TESTCONTAINERS_*" if you want stricter
-          # If this workflow should disable Ryuk, set it here (no repo changes needed)
-          TESTCONTAINERS_RYUK_DISABLED: "true"                          # remove if you want it on
-          # Tame concurrency a bit for container-heavy tests (keeps /var/run churn down)
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TOX_TESTENV_PASSENV: "*"
+          TESTCONTAINERS_RYUK_DISABLED: "true"
           PYTEST_ADDOPTS: "--dist=loadfile -n 4"
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
