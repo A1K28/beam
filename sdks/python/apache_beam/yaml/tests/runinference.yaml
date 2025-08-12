@@ -29,7 +29,7 @@ pipelines:
             model_handler: 
               type: "VertexAIModelHandlerJSON"
               config:
-                endpoint_id: YOUR_GEMMA2_2B_ENDPOINT_ID
+                endpoint_id: 1870474887521370112
                 project: "apache-beam-testing"
                 location: "us-central1"
                 preprocess:
