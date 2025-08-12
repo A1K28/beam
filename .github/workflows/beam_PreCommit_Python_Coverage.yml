@@ -135,27 +135,64 @@ jobs:
           echo "DinD DOCKER_HOST=${{ steps.dind.outputs.docker-host }}"
           docker -H ${{ steps.dind.outputs.docker-host }} info --format 'ServerVersion={{.ServerVersion}} RootDir={{.DockerRootDir}}'
 
-      # Get the DinD container IP (needed when using DinD over TCP)
+      # Discover DinD IP robustly (or fall back to 127.0.0.1 if on host network)
       - name: Discover DinD IP
         env:
           DOCKER_HOST: unix:///var/run/docker.sock   # talk to the host daemon
+        shell: bash
         run: |
-          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dind-daemon)
-          echo "DIND_IP=$ip"
-          echo "DIND_IP=$ip" >> $GITHUB_ENV
+          set -euo pipefail
+          NAME="${{ steps.dind.outputs.container-name || 'dind-daemon' }}"
+          echo "Host docker ps (names):"
+          docker ps --format '{{.Names}}\t{{.ID}}\t{{.Status}}'
 
-      # Smoke test plain Docker port mapping via DinD (no Testcontainers yet)
+          # Log network mode for clarity
+          nm=$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$NAME" || true)
+          echo "DinD NetworkMode=${nm:-<unknown>}"
+
+          # Try both IP paths
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$NAME" || true)
+          if [[ -z "${ip}" ]]; then
+            ip=$(docker inspect -f '{{.NetworkSettings.IPAddress}}' "$NAME" || true)
+          fi
+
+          # If still empty, likely host networking → use loopback
+          if [[ -z "${ip}" ]]; then
+            echo "No bridge IP found (probably NetworkMode=host). Using 127.0.0.1."
+            ip="127.0.0.1"
+          fi
+
+          echo "DIND_IP=${ip}"
+          echo "DIND_IP=${ip}" >> "$GITHUB_ENV"
+
+      # Port mapping smoke test (respects DIND_IP fallback)
       - name: Port mapping smoke test (redis via plain docker)
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+        shell: bash
         run: |
+          set -euo pipefail
           docker pull redis:7.2.4
           cid=$(docker run -d -p 0:6379 --name redis-smoke redis:7.2.4)
           hostport=$(docker port redis-smoke 6379/tcp | sed 's/.*://')
           echo "REDIS_HOSTPORT=$hostport"
-          # Try TCP connect from the runner to DinD's IP:hostport
-          timeout 5 bash -lc 'exec 3<>/dev/tcp/$DIND_IP/'"$hostport" '&& echo tcp-ok || (echo tcp-fail; exit 1)'
+          echo "Probing $DIND_IP:$hostport ..."
+          timeout 5 bash -lc 'exec 3<>/dev/tcp/$DIND_IP/'"$hostport" '&& echo tcp-ok'
           docker rm -f "$cid"
+
+      # When running tests, feed Testcontainers the resolved host
+      # (127.0.0.1 if DinD is on host networking; the bridge IP otherwise)
+      - name: Run preCommitPyCoverage
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*"
+          TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
+          PYTEST_ADDOPTS: "--dist=loadfile -n 4"
+        uses: ./.github/actions/gradle-command-self-hosted-action
+        with:
+          gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
+
 
       # Testcontainers check (runner Python): start/stop a tiny container using the right overrides
       - name: Testcontainers self-check (runner)
