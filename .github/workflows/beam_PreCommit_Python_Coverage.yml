@@ -90,9 +90,9 @@ jobs:
       - uses: ./.github/actions/dind-up-action
         id: dind
         with:
-          tmpfs-run-size: 4g        # was 1g
-          tmpfs-varrun-size: 8g     # was 1g
-          additional-dockerd-args: "--log-level=info"
+          use-host-network: "true"
+          tmpfs-run-size: 4g
+          tmpfs-varrun-size: 8g
           export-gh-env: true
 
       # 2) Quick ping to confirm DinD is reachable

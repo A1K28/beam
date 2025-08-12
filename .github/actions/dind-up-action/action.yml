@@ -50,6 +50,7 @@ runs:
         HR="${{ inputs.health-retries || '60' }}"
         HSP="${{ inputs.health-start-period || '10s' }}"
         EXTRA="${{ inputs.additional-dockerd-args }}"
+        USE_HOST_NET="${{ inputs.use-host-network || 'false' }}"
 
         # Decide on volume names: ephemeral (default) or fixed
         if [[ "${{ inputs.ephemeral-volumes }}" == "true" ]]; then
@@ -79,11 +80,20 @@ runs:
         # Nuke any prior DinD container with same NAME and its anonymous volumes
         docker rm -f -v "$NAME" 2>/dev/null || true
 
+        # Network/port args
+        NET_ARGS=""
+        PUBLISH_ARGS="-p ${BIND}:${PORT}:${PORT}"
+        if [[ "${USE_HOST_NET}" == "true" ]]; then
+          NET_ARGS="--network host"
+          PUBLISH_ARGS=""
+        fi
+
         # Launch DinD
         docker run -d --privileged --name "$NAME" \
           --cgroupns=host \
           -e DOCKER_TLS_CERTDIR= \
-          -p ${BIND}:${PORT}:${PORT} \
+          ${NET_ARGS} \
+          ${PUBLISH_ARGS} \
           -v "${STORAGE_VOL}:/var/lib/docker" \
           -v "${EXECROOT_VOL}:/execroot" \
           --tmpfs /run:rw,exec,size=${TRS} \
@@ -177,6 +187,9 @@ inputs:
     default: ""
   export-gh-env:
     description: "Also write DOCKER_HOST to $GITHUB_ENV for the rest of the job"
+    default: "false"
+  use-host-network:
+    description: "Run DinD with --network host instead of publishing a TCP port"
     default: "false"
 
 outputs:
