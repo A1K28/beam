@@ -127,6 +127,15 @@ jobs:
           print("Ryuk primed")
           PY
 
+      # Quick probe: what are the current Testcontainers timeouts?
+      - name: Probe Testcontainers waiting config
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+        run: |
+          python - <<'PY'
+          from testcontainers.core.waiting_utils import config
+          print("TC timeout:", config.timeout, "max_tries:", config.max_tries, "sleep_time:", config.sleep_time)
+          PY
 
       # 4) Run tests
       - name: Run preCommitPyCoverage
