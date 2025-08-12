@@ -111,6 +111,21 @@ jobs:
         run: |
           docker -H ${{ steps.dind.outputs.docker-host }} run --rm alpine echo OK
 
+      - name: Prime Ryuk (avoid parallel race)
+        run: |
+          # make sure testcontainers is available in this step
+          python -m pip install -q --upgrade pip testcontainers
+          # pull something tiny so the prime is fast/stable
+          docker -H ${{ steps.dind.outputs.docker-host }} pull alpine:3.19
+          # start/stop any container via testcontainers → Ryuk starts once
+          python - <<'PY'
+          from testcontainers.core.container import DockerContainer
+          c = DockerContainer("alpine:3.19").with_command("true")
+          c.start(); c.stop()
+          print("Ryuk primed")
+          PY
+
+
       # 4) Run tests
       - name: Run preCommitPyCoverage
         env:
