@@ -116,7 +116,7 @@ jobs:
           gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
 
       # 5) (Debug-only) prove which daemon tests used, no repo edits needed
-      - name: Sanity: which Docker did tox hit?
+      - name: Sanity which Docker did tox hit?
         if: always()
         run: |
           echo "Outer DOCKER_HOST=${{ steps.dind.outputs.docker-host }}"
