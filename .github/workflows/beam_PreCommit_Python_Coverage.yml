@@ -80,6 +80,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment-action
+        with:
+          java-version: default
+          python-version: default
+
       # 1) Start DinD with larger /run and /var/run (keeps containerd happy)
       - uses: ./.github/actions/dind-up-action
         id: dind
