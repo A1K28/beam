@@ -29,11 +29,11 @@ pipelines:
             model_handler: 
               type: "VertexAIModelHandlerJSON"
               config:
-                endpoint_id: 1870474887521370112
+                endpoint_id: YOUR_GEMMA2_2B_ENDPOINT_ID
                 project: "apache-beam-testing"
                 location: "us-central1"
                 preprocess:
-                  callable: 'lambda x: {"instances": [{"@requestFormat": "chatCompletions", "messages": [{"role": "user", "content": x.question}], "max_tokens": 100}]}' 
+                  callable: 'lambda x: {"instances":[{"prompt": x.question}], "parameters":{"max_tokens":100,"temperature":0.2}}'
                 private: false
         - type: PyTransform
           name: TransformInferenceBeamRowsToSimpleSchemaRows
