@@ -85,7 +85,8 @@ jobs:
           arguments: |
             -PtestJavaVersion=8 \
             -Pjava8Home=$JAVA_HOME_8_X64 \
-            -DbeamTestPipelineOptions='["--flinkMaster=[local]","--parallelism=1"]'
+            -DbeamTestPipelineOptions='["--flinkMaster=[local]","--parallelism=1"]' \
+            --info --stacktrace
           max-workers: 6
       - name: Archive JUnit Test Results
         uses: actions/upload-artifact@v4
