@@ -80,46 +80,48 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
 
-      - name: Print docker host before
-        run: |
-          echo "DOCKER_HOST=$DOCKER_HOST"
-          docker info --format 'Operating System: {{.OperatingSystem}}'
-      - name: Show DinD /run usage before
-        run: |
-          docker exec dind-daemon df -h /run /var/run || true
-          docker exec dind-daemon df -i /run /var/run || true
+      # 1) Start DinD with larger /run and /var/run (keeps containerd happy)
       - uses: ./.github/actions/dind-up-action
         id: dind
         with:
-          tmpfs-run-size: 10g
-          tmpfs-varrun-size: 30g
-      - name: Print docker host after
-        run: |
-          echo "DOCKER_HOST=$DOCKER_HOST"
-          docker info --format 'Operating System: {{.OperatingSystem}}'
-      - name: Show DinD /run usage after
-        run: |
-          docker exec dind-daemon df -h /run /var/run || true
-          docker exec dind-daemon df -i /run /var/run || true
-      - name: Setup environment
-        uses: ./.github/actions/setup-environment-action
-        with:
-          java-version: default
-          python-version: default
+          tmpfs-run-size: 4g        # was 1g
+          tmpfs-varrun-size: 8g     # was 1g
+          additional-dockerd-args: "--log-level=info"
+
+      # 2) Quick ping to confirm DinD is reachable
       - name: Quick ping to DinD
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-        run: |
-          docker info --format 'Daemon OK → OS={{.OperatingSystem}} RootDir={{.DockerRootDir}}'
+        run: docker info --format 'Daemon OK → OS={{.OperatingSystem}} RootDir={{.DockerRootDir}}'
 
+      # 3) (Optional but helpful) clean DinD before tests to avoid ENOSPC/inodes
+      - name: DinD cleanup
+        run: |
+          docker -H ${{ steps.dind.outputs.docker-host }} system prune -af --volumes || true
+          docker -H ${{ steps.dind.outputs.docker-host }} image prune -af || true
+
+      # 4) Run tests: FORCE envs into tox without editing tox.ini
       - name: Run preCommitPyCoverage
         env:
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-          TESTCONTAINERS_RYUK_DISABLED: "true"
-          TOX_TESTENV_PASSENV: "DOCKER_* TESTCONTAINERS_*"
+          # Make every child (tox + pytest + testcontainers) talk to DinD
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}            # tcp://127.0.0.1:2375
+          # Crucial: override tox passenv from the workflow only (works even when envs override passenv)
+          TOX_TESTENV_PASSENV: "*"                                      # or "DOCKER_*,TESTCONTAINERS_*" if you want stricter
+          # If this workflow should disable Ryuk, set it here (no repo changes needed)
+          TESTCONTAINERS_RYUK_DISABLED: "true"                          # remove if you want it on
+          # Tame concurrency a bit for container-heavy tests (keeps /var/run churn down)
+          PYTEST_ADDOPTS: "--dist=loadfile -n 4"
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
+
+      # 5) (Debug-only) prove which daemon tests used, no repo edits needed
+      - name: Sanity: which Docker did tox hit?
+        if: always()
+        run: |
+          echo "Outer DOCKER_HOST=${{ steps.dind.outputs.docker-host }}"
+          # Show DinD load to confirm tests actually used it
+          docker -H ${{ steps.dind.outputs.docker-host }} system df -v || true
 
       - uses: codecov/codecov-action@v3
         with:
