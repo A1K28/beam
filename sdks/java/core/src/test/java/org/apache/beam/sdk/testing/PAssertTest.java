@@ -379,7 +379,7 @@ public class PAssertTest implements Serializable {
     PAssert.thatSingleton("The value was not equal to 44", pcollection).isEqualTo(44);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String message = thrown.getMessage();
 
@@ -395,7 +395,7 @@ public class PAssertTest implements Serializable {
     PAssert.thatSingleton("The value was not equal to 44", pcollection).isEqualTo(44);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String message = thrown.getMessage();
 
@@ -411,7 +411,7 @@ public class PAssertTest implements Serializable {
     PAssert.thatSingleton("The value was not equal to 44", pcollection).isEqualTo(44);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String message = thrown.getMessage();
 
@@ -428,7 +428,7 @@ public class PAssertTest implements Serializable {
     PAssert.thatSingleton(pcollection).isEqualTo(44);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
     
     String message = thrown.getMessage();
 
@@ -523,7 +523,7 @@ public class PAssertTest implements Serializable {
     PAssert.that(pcollection).containsInAnyOrder(2, 1, 4, 3, 7);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError exc = getRootAssertionError(thrown);
+    AssertionError exc = getRootAssertionError(ex);
 
     Pattern expectedPattern =
         Pattern.compile(
@@ -545,7 +545,7 @@ public class PAssertTest implements Serializable {
     PAssert.that("Vals should have been empty", vals).empty();
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String message = thrown.getMessage();
 
@@ -560,7 +560,7 @@ public class PAssertTest implements Serializable {
     PAssert.that(vals).empty();
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String message = thrown.getMessage();
 
@@ -589,7 +589,7 @@ public class PAssertTest implements Serializable {
     assertThatCollectionIsEmptyWithMessage(vals);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     assertThat(thrown.getMessage(), containsString("Should be empty"));
     assertThat(
@@ -606,7 +606,7 @@ public class PAssertTest implements Serializable {
     assertThatCollectionIsEmptyWithoutMessage(vals);
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     assertThat(
         thrown.getMessage(), containsString("Expected: iterable with items [] in any order"));
@@ -698,7 +698,7 @@ public class PAssertTest implements Serializable {
 
     PAssert.thatFlattened(collectionList).containsInAnyOrder(7);
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
     
     String message = thrown.getMessage();
 
@@ -748,7 +748,7 @@ public class PAssertTest implements Serializable {
             });
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String stackTrace = Throwables.getStackTraceAsString(thrown);
 
@@ -812,7 +812,7 @@ public class PAssertTest implements Serializable {
                 }));
 
     Throwable ex = runExpectingAssertionFailure(pipeline);
-    AssertionError thrown = getRootAssertionError(thrown);
+    AssertionError thrown = getRootAssertionError(ex);
 
     String stackTrace = Throwables.getStackTraceAsString(thrown);
 
