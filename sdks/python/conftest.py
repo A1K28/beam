@@ -17,35 +17,12 @@
 
 """Pytest configuration and custom hooks."""
 
-import os
 import sys
 
 from apache_beam.options import pipeline_options
 from apache_beam.testing.test_pipeline import TestPipeline
 
 MAX_SUPPORTED_PYTHON_VERSION = (3, 13)
-
-# Ensure the env is set BEFORE testcontainers is imported anywhere
-os.environ.setdefault("TC_TIMEOUT", "120")
-os.environ.setdefault("TC_MAX_TRIES", "120")
-os.environ.setdefault("TC_SLEEP_TIME", "1")
-
-# Make sure testcontainers actually uses those values, regardless of version.
-from types import SimpleNamespace
-from testcontainers.core import waiting_utils as wu
-
-# Try to reuse the existing type if it supports reconstruction; otherwise fall back.
-cfg = getattr(wu, "config", None)
-timeout = int(os.getenv("TC_TIMEOUT", "120"))
-max_tries = int(os.getenv("TC_MAX_TRIES", "120"))
-sleep_time = float(os.getenv("TC_SLEEP_TIME", "1"))
-
-try:
-    # Some versions have a real class and allow re-instantiation
-    wu.config = type(cfg)(timeout=timeout, max_tries=max_tries, sleep_time=sleep_time)  # type: ignore
-except Exception:
-    # Portable fallback: replace with a simple object with the same attributes
-    wu.config = SimpleNamespace(timeout=timeout, max_tries=max_tries, sleep_time=sleep_time)
 
 
 def pytest_addoption(parser):
