@@ -42,34 +42,56 @@ collect_ignore_glob = [
 ]
 
 
-def pytest_configure(config):
-  """Saves options added in pytest_addoption for later use.
-  This is necessary since pytest-xdist workers do not have the same sys.argv as
-  the main pytest invocation. xdist does seem to pickle TestPipeline
-  """
-  TestPipeline.pytest_test_pipeline_options = config.getoption(
-      'test_pipeline_options', default='')
-  # Enable optional type checks on all tests.
-  pipeline_options.enable_all_additional_type_checks()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _dump_tc_env():
+# --- begin TC diagnostics ---
+def _gather_tc_info():
+    info = []
     try:
         import testcontainers
-        from testcontainers.core import waiting_utils as wu
-        print(f"[TC] version={getattr(testcontainers, '__version__', '<unknown>')}")
-        # Try both old and new names across versions:
-        cfg = getattr(wu, "config", None)
-        print(f"[TC] config={cfg!r}")
-        print("ENV SNAPSHOT:",
-              "DOCKER_HOST=", os.getenv("DOCKER_HOST"),
-              "TESTCONTAINERS_HOST_OVERRIDE=", os.getenv("TESTCONTAINERS_HOST_OVERRIDE"),
-              "TESTCONTAINERS_RYUK_DISABLED=", os.getenv("TESTCONTAINERS_RYUK_DISABLED"),
-              "TC_TIMEOUT=", os.getenv("TC_TIMEOUT"),
-              "TC_MAX_TRIES=", os.getenv("TC_MAX_TRIES"),
-              "TC_SLEEP_TIME=", os.getenv("TC_SLEEP_TIME"),
-              file=sys.stderr)
+        info.append(f"testcontainers={getattr(testcontainers, '__version__', '<unknown>')}")
+        try:
+            from testcontainers.core import waiting_utils as wu
+            info.append(f"waiting_utils.config={getattr(wu, 'config', None)!r}")
+        except Exception as e:
+            info.append(f"waiting_utils.import_error={e!r}")
     except Exception as e:
-        print(f"[TC] Unable to dump Testcontainers env: {e!r}", file=sys.stderr)
+        info.append(f"tc_import_error={e!r}")
+    # env of interest
+    for k in ("DOCKER_HOST",
+              "TESTCONTAINERS_HOST_OVERRIDE",
+              "TESTCONTAINERS_RYUK_DISABLED",
+              "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE",
+              "TESTCONTAINERS_LOG_LEVEL",
+              "TC_TIMEOUT", "TC_MAX_TRIES", "TC_SLEEP_TIME"):
+        info.append(f"{k}={os.getenv(k)}")
+    return " | ".join(info)
 
+def pytest_configure(config):
+    # print once in the controller process
+    tr = config.pluginmanager.getplugin("terminalreporter")
+    if tr:
+        tr.write_line("[controller] " + _gather_tc_info())
+    TestPipeline.pytest_test_pipeline_options = config.getoption(
+        'test_pipeline_options', default='')
+    # Enable optional type checks on all tests.
+    pipeline_options.enable_all_additional_type_checks()
+
+# print per worker and relay to controller:
+def pytest_configure_node(node):  # runs in controller
+    node.slaveoutput["tc_info"] = None  # will be filled by worker
+
+def pytest_testnodedown(node, error):  # back in controller when a worker exits
+    tr = node.config.pluginmanager.getplugin("terminalreporter")
+    if tr:
+        info = node.slaveoutput.get("tc_info")
+        wid = getattr(node, "gateway", None)
+        wid = getattr(wid, "id", "worker")
+        tr.write_line(f"[{wid}] {info or '<no worker info>'}")
+
+# in each worker process:
+def pytest_sessionstart(session):  # worker-side hook
+    try:
+        # Report back to controller
+        session.config.slaveoutput["tc_info"] = _gather_tc_info()
+    except Exception:
+        pass
+# --- end TC diagnostics ---
