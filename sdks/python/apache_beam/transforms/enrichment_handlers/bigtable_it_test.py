@@ -20,14 +20,19 @@ os.environ.setdefault("TC_TIMEOUT", "120")
 os.environ.setdefault("TC_MAX_TRIES", "120")
 os.environ.setdefault("TC_SLEEP_TIME", "1")
 
+from testcontainers.core import waiting_utils as wu
+wu.config = wu.WaitConfig(
+    timeout=int(os.getenv("TC_TIMEOUT", "120")),
+    max_tries=int(os.getenv("TC_MAX_TRIES", "120")),
+    sleep_time=float(os.getenv("TC_SLEEP_TIME", "1")),
+)
+
 import datetime
 import logging
 import time
 import unittest
 from typing import NamedTuple
 from unittest.mock import MagicMock
-
-from testcontainers.core.waiting_utils import config as tc_config
 
 import pytest
 
