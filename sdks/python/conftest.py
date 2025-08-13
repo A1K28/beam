@@ -19,6 +19,9 @@
 
 import sys
 
+import os
+import pytest
+
 from apache_beam.options import pipeline_options
 from apache_beam.testing.test_pipeline import TestPipeline
 
@@ -48,3 +51,25 @@ def pytest_configure(config):
       'test_pipeline_options', default='')
   # Enable optional type checks on all tests.
   pipeline_options.enable_all_additional_type_checks()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _dump_tc_env():
+    try:
+        import testcontainers
+        from testcontainers.core import waiting_utils as wu
+        print(f"[TC] version={getattr(testcontainers, '__version__', '<unknown>')}")
+        # Try both old and new names across versions:
+        cfg = getattr(wu, "config", None)
+        print(f"[TC] config={cfg!r}")
+        print("ENV SNAPSHOT:",
+              "DOCKER_HOST=", os.getenv("DOCKER_HOST"),
+              "TESTCONTAINERS_HOST_OVERRIDE=", os.getenv("TESTCONTAINERS_HOST_OVERRIDE"),
+              "TESTCONTAINERS_RYUK_DISABLED=", os.getenv("TESTCONTAINERS_RYUK_DISABLED"),
+              "TC_TIMEOUT=", os.getenv("TC_TIMEOUT"),
+              "TC_MAX_TRIES=", os.getenv("TC_MAX_TRIES"),
+              "TC_SLEEP_TIME=", os.getenv("TC_SLEEP_TIME"),
+              file=sys.stderr)
+    except Exception as e:
+        print(f"[TC] Unable to dump Testcontainers env: {e!r}", file=sys.stderr)
+
