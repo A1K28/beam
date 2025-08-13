@@ -21,6 +21,8 @@ import time
 import unittest
 from unittest.mock import MagicMock
 
+from testcontainers.core.waiting_utils import config as tc_config
+
 import pytest
 
 import apache_beam as beam
@@ -147,6 +149,9 @@ class TestBigQueryEnrichmentIT(BigQueryEnrichmentIT):
     for i in range(self.retries):
       try:
         self.container = RedisContainer(image='redis:7.2.4')
+        tc_config.timeout = int(os.getenv("TC_TIMEOUT", "120"))
+        tc_config.max_tries = int(os.getenv("TC_MAX_TRIES", "120"))
+        tc_config.sleep_time = float(os.getenv("TC_SLEEP_TIME", "1"))
         self.container.start()
         self.host = self.container.get_container_host_ip()
         self.port = self.container.get_exposed_port(6379)
