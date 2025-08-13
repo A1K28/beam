@@ -19,6 +19,7 @@ import unittest
 import time
 from unittest.mock import MagicMock
 
+import os
 from testcontainers.core.waiting_utils import config as tc_config
 
 import pytest
