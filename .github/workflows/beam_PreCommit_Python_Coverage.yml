@@ -193,7 +193,6 @@ jobs:
         with:
           gradle-command: :sdks:python:test-suites:tox:py39:preCommitPyCoverage
 
-
       # Testcontainers check (runner Python): start/stop a tiny container using the right overrides
       - name: Testcontainers self-check (runner)
         env:
