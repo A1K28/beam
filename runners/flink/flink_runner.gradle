@@ -277,6 +277,10 @@ def createValidatesRunnerTask(Map m) {
     )
     // maxParallelForks decreased from 4 in order to avoid OOM errors
     maxParallelForks 2
+
+    // ensure a clean JVM for each test class
+    forkEvery = 1
+
     useJUnit {
       if (config.checkpointing) {
         includeCategories 'org.apache.beam.sdk.testing.UsesBundleFinalizer'
