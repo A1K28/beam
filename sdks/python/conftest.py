@@ -42,7 +42,7 @@ collect_ignore_glob = [
 ]
 
 
-# --- begin TC diagnostics ---
+# --- begin TC diagnostics (xdist 3+ safe) ---
 def _gather_tc_info():
     info = []
     try:
@@ -55,43 +55,61 @@ def _gather_tc_info():
             info.append(f"waiting_utils.import_error={e!r}")
     except Exception as e:
         info.append(f"tc_import_error={e!r}")
-    # env of interest
-    for k in ("DOCKER_HOST",
-              "TESTCONTAINERS_HOST_OVERRIDE",
-              "TESTCONTAINERS_RYUK_DISABLED",
-              "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE",
-              "TESTCONTAINERS_LOG_LEVEL",
-              "TC_TIMEOUT", "TC_MAX_TRIES", "TC_SLEEP_TIME"):
+    for k in (
+        "DOCKER_HOST",
+        "TESTCONTAINERS_HOST_OVERRIDE",
+        "TESTCONTAINERS_RYUK_DISABLED",
+        "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE",
+        "TESTCONTAINERS_LOG_LEVEL",
+        "TC_TIMEOUT", "TC_MAX_TRIES", "TC_SLEEP_TIME",
+    ):
         info.append(f"{k}={os.getenv(k)}")
     return " | ".join(info)
 
-def pytest_configure(config):
-    # print once in the controller process
+def _terminal_write(config, msg):
     tr = config.pluginmanager.getplugin("terminalreporter")
     if tr:
-        tr.write_line("[controller] " + _gather_tc_info())
-    TestPipeline.pytest_test_pipeline_options = config.getoption(
-        'test_pipeline_options', default='')
-    # Enable optional type checks on all tests.
-    pipeline_options.enable_all_additional_type_checks()
+        tr.write_line(msg)
 
-# print per worker and relay to controller:
-def pytest_configure_node(node):  # runs in controller
-    node.slaveoutput["tc_info"] = None  # will be filled by worker
+def pytest_configure(config):
+    # controller process
+    _terminal_write(config, "[controller] " + _gather_tc_info())
+    # TestPipeline.pytest_test_pipeline_options = config.getoption(
+    #     'test_pipeline_options', default='')
+    # # Enable optional type checks on all tests.
+    # pipeline_options.enable_all_additional_type_checks()
 
-def pytest_testnodedown(node, error):  # back in controller when a worker exits
-    tr = node.config.pluginmanager.getplugin("terminalreporter")
-    if tr:
+def pytest_configure_node(node):
+    """Controller side: prepare a slot for worker data (xdist 2/3)."""
+    # xdist<3 used slaveoutput; xdist>=3 uses workeroutput
+    if not hasattr(node, "workeroutput"):
+        setattr(node, "workeroutput", {})
+    if not hasattr(node, "slaveoutput"):
+        setattr(node, "slaveoutput", {})
+
+def pytest_testnodedown(node, error):
+    """Controller receives data back from each worker when it exits."""
+    info = None
+    # prefer new API
+    if hasattr(node, "workeroutput"):
+        info = node.workeroutput.get("tc_info")
+    # fallback for very old xdist
+    if not info and hasattr(node, "slaveoutput"):
         info = node.slaveoutput.get("tc_info")
-        wid = getattr(node, "gateway", None)
-        wid = getattr(wid, "id", "worker")
-        tr.write_line(f"[{wid}] {info or '<no worker info>'}")
+    wid = getattr(getattr(node, "gateway", None), "id", "worker")
+    _terminal_write(node.config, f"[{wid}] {info or '<no worker info>'}")
 
-# in each worker process:
-def pytest_sessionstart(session):  # worker-side hook
+def pytest_sessionstart(session):
+    """Worker process: populate workeroutput with diagnostics."""
+    cfg = session.config
     try:
-        # Report back to controller
-        session.config.slaveoutput["tc_info"] = _gather_tc_info()
+        # xdist>=3
+        wo = getattr(cfg, "workeroutput", None)
+        if wo is None:
+            # xdist<3
+            wo = getattr(cfg, "slaveoutput", None)
+        if isinstance(wo, dict):
+            wo["tc_info"] = _gather_tc_info()
     except Exception:
         pass
 # --- end TC diagnostics ---
