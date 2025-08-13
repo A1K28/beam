@@ -378,7 +378,8 @@ public class PAssertTest implements Serializable {
     PCollection<Integer> pcollection = pipeline.apply(Create.of(42));
     PAssert.thatSingleton("The value was not equal to 44", pcollection).isEqualTo(44);
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     String message = thrown.getMessage();
 
@@ -393,7 +394,8 @@ public class PAssertTest implements Serializable {
     PCollection<Integer> pcollection = pipeline.apply(Create.empty(VarIntCoder.of()));
     PAssert.thatSingleton("The value was not equal to 44", pcollection).isEqualTo(44);
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     String message = thrown.getMessage();
 
@@ -408,7 +410,8 @@ public class PAssertTest implements Serializable {
     PCollection<Integer> pcollection = pipeline.apply(Create.of(44, 44));
     PAssert.thatSingleton("The value was not equal to 44", pcollection).isEqualTo(44);
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     String message = thrown.getMessage();
 
@@ -424,8 +427,9 @@ public class PAssertTest implements Serializable {
     PCollection<Integer> pcollection = pipeline.apply(Create.of(42));
     PAssert.thatSingleton(pcollection).isEqualTo(44);
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
-
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
+    
     String message = thrown.getMessage();
 
     assertThat(message, containsString("Create.Values/"));
@@ -518,7 +522,9 @@ public class PAssertTest implements Serializable {
 
     PAssert.that(pcollection).containsInAnyOrder(2, 1, 4, 3, 7);
 
-    Throwable exc = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError exc = getRootAssertionError(thrown);
+
     Pattern expectedPattern =
         Pattern.compile(
             "Expected: iterable with items \\[((<4>|<7>|<3>|<2>|<1>)(, )?){5}\\] in any order");
@@ -538,7 +544,8 @@ public class PAssertTest implements Serializable {
     PCollection<Long> vals = pipeline.apply(GenerateSequence.from(0).to(5));
     PAssert.that("Vals should have been empty", vals).empty();
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     String message = thrown.getMessage();
 
@@ -552,7 +559,8 @@ public class PAssertTest implements Serializable {
     PCollection<Long> vals = pipeline.apply(GenerateSequence.from(0).to(5));
     PAssert.that(vals).empty();
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     String message = thrown.getMessage();
 
@@ -580,7 +588,8 @@ public class PAssertTest implements Serializable {
     PCollection<Long> vals = pipeline.apply(GenerateSequence.from(0).to(5));
     assertThatCollectionIsEmptyWithMessage(vals);
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     assertThat(thrown.getMessage(), containsString("Should be empty"));
     assertThat(
@@ -596,7 +605,8 @@ public class PAssertTest implements Serializable {
     PCollection<Long> vals = pipeline.apply(GenerateSequence.from(0).to(5));
     assertThatCollectionIsEmptyWithoutMessage(vals);
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
 
     assertThat(
         thrown.getMessage(), containsString("Expected: iterable with items [] in any order"));
@@ -611,6 +621,17 @@ public class PAssertTest implements Serializable {
 
   private static void assertThatCollectionIsEmptyWithoutMessage(PCollection<Long> vals) {
     PAssert.that(vals).empty();
+  }
+
+  private static AssertionError getRootAssertionError(Throwable t) {
+    // The Guava Throwables.getCausalChain helper gives us all exceptions, including the top one.
+    return Throwables.getCausalChain(t).stream()
+        .filter(cause -> cause instanceof AssertionError)
+        .map(cause -> (AssertionError) cause)
+        .findFirst()
+        // If no AssertionError is in the chain, fail the test with a helpful message.
+        .orElseThrow(
+            () -> new AssertionError("Could not find an AssertionError in the cause chain", t));
   }
 
   private static Throwable runExpectingAssertionFailure(Pipeline pipeline) {
@@ -676,8 +697,9 @@ public class PAssertTest implements Serializable {
         PCollectionList.of(firstCollection).and(secondCollection);
 
     PAssert.thatFlattened(collectionList).containsInAnyOrder(7);
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
-
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
+    
     String message = thrown.getMessage();
 
     assertThat(message, containsString("Expected: iterable with items [<7>] in any order"));
@@ -725,7 +747,9 @@ public class PAssertTest implements Serializable {
               return null;
             });
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
+
     String stackTrace = Throwables.getStackTraceAsString(thrown);
 
     assertThat(stackTrace, containsString(expectedAssertionFailMessage));
@@ -787,7 +811,9 @@ public class PAssertTest implements Serializable {
                   return null;
                 }));
 
-    Throwable thrown = runExpectingAssertionFailure(pipeline);
+    Throwable ex = runExpectingAssertionFailure(pipeline);
+    AssertionError thrown = getRootAssertionError(thrown);
+
     String stackTrace = Throwables.getStackTraceAsString(thrown);
 
     assertThat(stackTrace, containsString(expectedAssertionFailMessage));
