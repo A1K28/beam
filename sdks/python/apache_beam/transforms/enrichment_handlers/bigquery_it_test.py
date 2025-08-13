@@ -143,7 +143,7 @@ class TestBigQueryEnrichmentIT(BigQueryEnrichmentIT):
 
   def setUp(self) -> None:
     self.condition_template = "id = {}"
-    self.retries = 8
+    self.retries = 5
     self._start_container()
 
   def _start_container(self):

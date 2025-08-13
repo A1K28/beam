@@ -171,7 +171,7 @@ class TestBigTableEnrichment(unittest.TestCase):
     instance = client.instance(self.instance_id)
     self.table = instance.table(self.table_id)
     create_rows(self.table)
-    self.retries = 8
+    self.retries = 5
     self._start_container()
 
   def _start_container(self):

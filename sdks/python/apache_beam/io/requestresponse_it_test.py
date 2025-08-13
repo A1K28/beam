@@ -210,7 +210,7 @@ class FakeCallerForCache(Caller[str, str]):
 @pytest.mark.uses_testcontainer
 class TestRedisCache(unittest.TestCase):
   def setUp(self) -> None:
-    self.retries = 8
+    self.retries = 5
     self._start_container()
 
   def test_rrio_cache_all_miss(self):

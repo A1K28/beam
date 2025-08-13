@@ -75,7 +75,7 @@ class TestVertexAIFeatureStoreHandler(unittest.TestCase):
     self.entity_type_name = "entity_id"
     self.api_endpoint = "us-central1-aiplatform.googleapis.com"
     self.feature_ids = ['title', 'genres']
-    self.retries = 8
+    self.retries = 5
     self._start_container()
 
   def _start_container(self):
