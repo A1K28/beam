@@ -17,7 +17,6 @@
 
 """Pytest configuration and custom hooks."""
 
-import os
 import sys
 
 from apache_beam.options import pipeline_options
@@ -45,18 +44,7 @@ def pytest_configure(config):
   This is necessary since pytest-xdist workers do not have the same sys.argv as
   the main pytest invocation. xdist does seem to pickle TestPipeline
   """
-  print(f"\n--- HOOK: pytest_configure --- TC_TIMEOUT is: {os.environ.get('TC_TIMEOUT')}\n")
   TestPipeline.pytest_test_pipeline_options = config.getoption(
       'test_pipeline_options', default='')
   # Enable optional type checks on all tests.
   pipeline_options.enable_all_additional_type_checks()
-
-
-# Hook 2: Runs after configuration and collection.
-def pytest_sessionstart(session):
-    print(f"\n--- HOOK: pytest_sessionstart --- TC_TIMEOUT is: {os.environ.get('TC_TIMEOUT')}\n")
-
-
-# Hook 3: Runs right before each test function executes.
-def pytest_runtest_logstart(nodeid, location):
-    print(f"\n--- HOOK: pytest_runtest_logstart --- TC_TIMEOUT is: {os.environ.get('TC_TIMEOUT')}\n")
