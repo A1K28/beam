@@ -90,7 +90,7 @@ jobs:
       - uses: ./.github/actions/dind-up-action
         id: dind
         with:
-          use-host-network: "true"
+          use-host-network: "false"
           tmpfs-run-size: 4g
           tmpfs-varrun-size: 8g
           export-gh-env: true
