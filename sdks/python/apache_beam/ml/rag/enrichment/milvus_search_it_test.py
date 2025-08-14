@@ -315,6 +315,7 @@ class MilvusEnrichmentTestHelper:
               cfg, "/milvus/configs/user.yaml")
           try:
             vector_db_container.start()
+            print("Successfully started milvus vector db containere")
           except Exception as e:
             # On failure, print the container's logs before re-raising the error
             print("--- Milvus container failed to start. Logs: ---", flush=True)
