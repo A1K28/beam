@@ -181,6 +181,7 @@ jobs:
           docker rm -f "$cid"
 
       - name: Verify ENV VARS are passed through tox
+        working-directory: sdks/python
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
           TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_"
@@ -198,7 +199,7 @@ jobs:
           python -m pip install tox
           echo "--- Checking for TC_TIMEOUT inside tox ---"
           tox -e py39-cloudcoverage -- python -c "import os; print(f'TC_TIMEOUT is: {os.environ.get(\"TC_TIMEOUT\")}')"
-          
+
       # When running tests, feed Testcontainers the resolved host
       # (127.0.0.1 if DinD is on host networking; the bridge IP otherwise)
       - name: Run preCommitPyCoverage
