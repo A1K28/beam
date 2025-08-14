@@ -17,7 +17,12 @@
 
 """Pytest configuration and custom hooks."""
 
+import os
 import sys
+
+from types import SimpleNamespace
+
+from testcontainers.core import waiting_utils
 
 from apache_beam.options import pipeline_options
 from apache_beam.testing.test_pipeline import TestPipeline
@@ -44,6 +49,22 @@ def pytest_configure(config):
   This is necessary since pytest-xdist workers do not have the same sys.argv as
   the main pytest invocation. xdist does seem to pickle TestPipeline
   """
+  # for the entire test session.
+  print("\n--- Applying global testcontainers timeout configuration ---")
+  try:
+    waiting_utils.config.timeout = 120
+    waiting_utils.config.max_tries = 120
+    waiting_utils.config.sleep_time = 1
+    print("Successfully set waiting utils config (1)")
+  except Exception as e:
+    print("Could not set waiting utils config. retrying with a different method", e)
+    waiting_utils.config = SimpleNamespace(
+        timeout=int(os.getenv("TC_TIMEOUT", "120")),
+        max_tries=int(os.getenv("TC_MAX_TRIES", "120")),
+        sleep_time=float(os.getenv("TC_SLEEP_TIME", "1")),
+    )
+    print("Successfully set waiting utils config (2)")
+
   TestPipeline.pytest_test_pipeline_options = config.getoption(
       'test_pipeline_options', default='')
   # Enable optional type checks on all tests.
