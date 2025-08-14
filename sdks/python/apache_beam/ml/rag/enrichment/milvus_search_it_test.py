@@ -313,7 +313,16 @@ class MilvusEnrichmentTestHelper:
               healthcheck_container_port=healthcheck_container_port)
           vector_db_container = vector_db_container.with_volume_mapping(
               cfg, "/milvus/configs/user.yaml")
-          vector_db_container.start()
+          try:
+            vector_db_container.start()
+          except Exception as e:
+            # On failure, print the container's logs before re-raising the error
+            print("--- Milvus container failed to start. Logs: ---", flush=True)
+            stdout, stderr = vector_db_container.get_logs()
+            print(f"STDOUT:\n{stdout.decode() if stdout else '...empty...'}")
+            print(f"STDERR:\n{stderr.decode() if stderr else '...empty...'}")
+            print("---------------------------------------------", flush=True)
+            raise e
           host = vector_db_container.get_container_host_ip()
           port = vector_db_container.get_exposed_port(service_container_port)
           info = MilvusDBContainerInfo(vector_db_container, host, port)
