@@ -129,6 +129,8 @@ if [[ -n "$test_paths" ]]; then
 fi
 pytest_command_args="$options $pyargs_section"
 
+echo "--- In run_pytest.sh, just before pytest: TC_TIMEOUT is [${TC_TIMEOUT}] ---"
+
 # Run tests in parallel.
 echo "Running parallel tests with: pytest -m \"$marker_for_parallel_tests\" $pytest_command_args"
 pytest -v -rs -s -o junit_suite_name=${envname} \
