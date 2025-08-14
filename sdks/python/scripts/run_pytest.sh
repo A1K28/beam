@@ -131,13 +131,13 @@ pytest_command_args="$options $pyargs_section"
 
 # Run tests in parallel.
 echo "Running parallel tests with: pytest -m \"$marker_for_parallel_tests\" $pytest_command_args"
-pytest -v -rs -o junit_suite_name=${envname} \
+pytest -v -rs -s -o junit_suite_name=${envname} \
   --junitxml=pytest_${envname}.xml -m "$marker_for_parallel_tests" -n 6 --import-mode=importlib ${pytest_args} ${pytest_command_args}
 status1=$?
 
 # Run tests sequentially.
 echo "Running sequential tests with: pytest -m \"$marker_for_sequential_tests\" $pytest_command_args"
-pytest -v -rs -o junit_suite_name=${envname}_no_xdist \
+pytest -v -rs -s -o junit_suite_name=${envname}_no_xdist \
   --junitxml=pytest_${envname}_no_xdist.xml -m "$marker_for_sequential_tests" --import-mode=importlib ${pytest_args} ${pytest_command_args}
 status2=$?
 

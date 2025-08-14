@@ -1,0 +1,14 @@
+import os
+import unittest
+
+class TestEnvironmentSpy(unittest.TestCase):
+    def test_what_is_my_environment(self):
+        """
+        This test prints the environment variable and then intentionally fails
+        so we can see the output in the logs.
+        """
+        timeout_val = os.environ.get('TC_TIMEOUT')
+        print(f"\n--- SPY TEST: Inside pytest, TC_TIMEOUT is: {timeout_val} ---\n")
+
+        # We fail the test on purpose to make sure it runs and we see the output.
+        self.fail("This spy test intentionally fails to report the environment.")
