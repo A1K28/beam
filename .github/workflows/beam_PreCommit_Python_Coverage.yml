@@ -180,6 +180,24 @@ jobs:
           timeout 5 bash -lc 'exec 3<>/dev/tcp/$DIND_IP/'"$hostport" '&& echo tcp-ok'
           docker rm -f "$cid"
 
+      - name: Verify ENV VARS are passed through tox
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_"
+          TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
+          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
+          # Ryuk ON (omit entirely or set to "false")
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          # Optional: some CI needs privileged Ryuk
+          TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED: "true"
+          PYTEST_ADDOPTS: "--dist=loadfile -n 4"
+          TC_TIMEOUT: "120"
+          TC_MAX_TRIES: "120"
+          TC_SLEEP_TIME: "1"
+        run: |
+          echo "--- Checking for TC_TIMEOUT inside tox ---"
+          tox -e py39-cloudcoverage -- python -c "import os; print(f'TC_TIMEOUT is: {os.environ.get(\"TC_TIMEOUT\")}')"
+
       # When running tests, feed Testcontainers the resolved host
       # (127.0.0.1 if DinD is on host networking; the bridge IP otherwise)
       - name: Run preCommitPyCoverage
