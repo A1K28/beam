@@ -1,6 +1,9 @@
+import pytest
 import os
 import unittest
 
+# Add this decorator to force the test to run in the main process
+@pytest.mark.no_xdist
 class TestEnvironmentSpy(unittest.TestCase):
     def test_what_is_my_environment(self):
         """
@@ -9,6 +12,5 @@ class TestEnvironmentSpy(unittest.TestCase):
         """
         timeout_val = os.environ.get('TC_TIMEOUT')
         print(f"\n--- SPY TEST: Inside pytest, TC_TIMEOUT is: {timeout_val} ---\n")
-
-        # We fail the test on purpose to make sure it runs and we see the output.
+        
         self.fail("This spy test intentionally fails to report the environment.")
