@@ -111,22 +111,6 @@ jobs:
         run: |
           docker -H ${{ steps.dind.outputs.docker-host }} run --rm alpine echo OK
 
-      - name: Prime Ryuk (avoid parallel race)
-        env:
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-        run: |
-          # make sure testcontainers is available in this step
-          python -m pip install -q --upgrade pip testcontainers
-          # pull something tiny so the prime is fast/stable
-          docker -H ${{ steps.dind.outputs.docker-host }} pull alpine:3.19
-          # start/stop any container via testcontainers → Ryuk starts once
-          python - <<'PY'
-          from testcontainers.core.container import DockerContainer
-          c = DockerContainer("alpine:3.19").with_command("true")
-          c.start(); c.stop()
-          print("Ryuk primed")
-          PY
-
       #################################################
       # Show which Docker we’ll use and basic health
       - name: DinD info
@@ -179,6 +163,23 @@ jobs:
           echo "Probing $DIND_IP:$hostport ..."
           timeout 5 bash -lc 'exec 3<>/dev/tcp/$DIND_IP/'"$hostport" '&& echo tcp-ok'
           docker rm -f "$cid"
+
+      - name: Prime Ryuk (avoid parallel race)
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
+        run: |
+          # make sure testcontainers is available in this step
+          python -m pip install -q --upgrade pip testcontainers
+          # pull something tiny so the prime is fast/stable
+          docker -H ${{ steps.dind.outputs.docker-host }} pull alpine:3.19
+          # start/stop any container via testcontainers → Ryuk starts once
+          python - <<'PY'
+          from testcontainers.core.container import DockerContainer
+          c = DockerContainer("alpine:3.19").with_command("true")
+          c.start(); c.stop()
+          print("Ryuk primed and ready.")
+          PY
 
       # When running tests, feed Testcontainers the resolved host
       # (127.0.0.1 if DinD is on host networking; the bridge IP otherwise)
