@@ -142,6 +142,7 @@ test {
   // Change log level to debug only for the package and nested packages:
   // systemProperty "org.slf4j.simpleLogger.log.org.apache.beam.runners.flink.translation.wrappers.streaming", "debug"
   jvmArgs "-XX:-UseGCOverheadLimit"
+  jvmArgs "-Xmx2g", "-XX:-UseGCOverheadLimit"
   if (System.getProperty("beamSurefireArgline")) {
     jvmArgs System.getProperty("beamSurefireArgline")
   }
@@ -276,7 +277,7 @@ def createValidatesRunnerTask(Map m) {
       project(":runners:core-java").sourceSets.test.output.classesDirs,
     )
     // maxParallelForks decreased from 4 in order to avoid OOM errors
-    maxParallelForks 2
+    maxParallelForks 1
 
     // ensure a clean JVM for each test class
     forkEvery = 1
