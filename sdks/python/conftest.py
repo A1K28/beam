@@ -48,3 +48,39 @@ def pytest_configure(config):
       'test_pipeline_options', default='')
   # Enable optional type checks on all tests.
   pipeline_options.enable_all_additional_type_checks()
+
+  # ==========================================================
+  import os
+  import traceback
+
+  class EnvironmentSpy(dict):
+    """A dict subclass that spies on deletions."""
+    def __init__(self, *args, **kwargs):
+      self.update(*args, **kwargs)
+
+    def __delitem__(self, key):
+      # If the key we care about is being deleted, print the stack trace
+      if 'TC_' in key:
+        print(f'\n--- SPY: Code is DELETING os.environ["{key}"] ---')
+        traceback.print_stack()
+      super().__delitem__(key)
+
+    def pop(self, key, *args):
+      # If the key we care about is being popped, print the stack trace
+      if 'TC_' in key:
+        print(f'\n--- SPY: Code is POPPING os.environ["{key}"] ---')
+        traceback.print_stack()
+      return super().pop(key, *args)
+
+  # Replace the real os.environ with our spy object
+  if not isinstance(os.environ, EnvironmentSpy):
+    os.environ = EnvironmentSpy(os.environ)
+    print("\n--- SPY: os.environ has been replaced with a spy object. ---\n")
+  # ==========================================================
+
+
+  # Keep the original lines from this function
+  TestPipeline.pytest_test_pipeline_options = config.getoption(
+      'test_pipeline_options', default='')
+  # Enable optional type checks on all tests.
+  pipeline_options.enable_all_additional_type_checks()
