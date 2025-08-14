@@ -17,6 +17,7 @@
 
 """Pytest configuration and custom hooks."""
 
+import os
 import sys
 
 from apache_beam.options import pipeline_options
@@ -44,43 +45,18 @@ def pytest_configure(config):
   This is necessary since pytest-xdist workers do not have the same sys.argv as
   the main pytest invocation. xdist does seem to pickle TestPipeline
   """
+  print(f"\n--- HOOK: pytest_configure --- TC_TIMEOUT is: {os.environ.get('TC_TIMEOUT')}\n")
   TestPipeline.pytest_test_pipeline_options = config.getoption(
       'test_pipeline_options', default='')
   # Enable optional type checks on all tests.
   pipeline_options.enable_all_additional_type_checks()
 
-  # ==========================================================
-  import os
-  import traceback
 
-  class EnvironmentSpy(dict):
-    """A dict subclass that spies on deletions."""
-    def __init__(self, *args, **kwargs):
-      self.update(*args, **kwargs)
-
-    def __delitem__(self, key):
-      # If the key we care about is being deleted, print the stack trace
-      if 'TC_' in key:
-        print(f'\n--- SPY: Code is DELETING os.environ["{key}"] ---')
-        traceback.print_stack()
-      super().__delitem__(key)
-
-    def pop(self, key, *args):
-      # If the key we care about is being popped, print the stack trace
-      if 'TC_' in key:
-        print(f'\n--- SPY: Code is POPPING os.environ["{key}"] ---')
-        traceback.print_stack()
-      return super().pop(key, *args)
-
-  # Replace the real os.environ with our spy object
-  if not isinstance(os.environ, EnvironmentSpy):
-    os.environ = EnvironmentSpy(os.environ)
-    print("\n--- SPY: os.environ has been replaced with a spy object. ---\n")
-  # ==========================================================
+# Hook 2: Runs after configuration and collection.
+def pytest_sessionstart(session):
+    print(f"\n--- HOOK: pytest_sessionstart --- TC_TIMEOUT is: {os.environ.get('TC_TIMEOUT')}\n")
 
 
-  # Keep the original lines from this function
-  TestPipeline.pytest_test_pipeline_options = config.getoption(
-      'test_pipeline_options', default='')
-  # Enable optional type checks on all tests.
-  pipeline_options.enable_all_additional_type_checks()
+# Hook 3: Runs right before each test function executes.
+def pytest_runtest_logstart(nodeid, location):
+    print(f"\n--- HOOK: pytest_runtest_logstart --- TC_TIMEOUT is: {os.environ.get('TC_TIMEOUT')}\n")
