@@ -47,14 +47,19 @@ class MatrixPowerTest(unittest.TestCase):
   def test_basics(self):
     matrix_path = self.create_temp_file(self.MATRIX_INPUT)
     vector_path = self.create_temp_file(self.VECTOR_INPUT)
-    matrix_power.run((
+
+    # 1. Capture the pipeline's result object
+    result = matrix_power.run((
         '--input_matrix=%s --input_vector=%s --exponent=%d --output=%s.result' %
         (matrix_path, vector_path, self.EXPONENT, vector_path)).split())
-    # Parse result file and compare.
+
+    # 2. Wait for the pipeline to finish. This will raise the real error if it failed.
+    result.wait_until_finish()
+
+    # 3. Now, check for the output file
     with open(vector_path + '.result-00000-of-00001') as result_file:
       results = result_file.read()
       self.assertEqual(sorted(self.EXPECTED_OUTPUT), sorted(results))
-
 
 if __name__ == '__main__':
   logging.getLogger().setLevel(logging.INFO)
