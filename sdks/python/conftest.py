@@ -72,16 +72,25 @@ def configure_beam_rpc_timeouts():
       'BEAM_RETRY_MAX_DELAY_MS': '60000',             # 60 seconds max delay
       'BEAM_RUNNER_BUNDLE_TIMEOUT_MS': '300000',      # 5 minutes bundle timeout
       
-      # Portable runner stability
-      'BEAM_WORKER_POOL_SIZE': '2',                   # Reduce worker pool for stability
-      'BEAM_SDK_WORKER_PARALLELISM': '1',             # Single-threaded workers for determinism
+      # Force deterministic execution in DinD environment
+      'BEAM_TESTING_FORCE_SINGLE_BUNDLE': 'true',     # Force single bundle processing
+      'BEAM_TESTING_DETERMINISTIC_ORDER': 'true',     # Force deterministic element ordering
+      'BEAM_SDK_WORKER_PARALLELISM': '1',             # Single-threaded workers
+      'BEAM_WORKER_POOL_SIZE': '1',                   # Single worker pool
+      'BEAM_FN_API_CONTROL_PORT': '0',                # Let system assign ports
+      'BEAM_FN_API_DATA_PORT': '0',                   # Let system assign ports
+      
+      # Container-specific stability settings
+      'PYTHONHASHSEED': '0',                          # Deterministic hash seed
+      'OMP_NUM_THREADS': '1',                         # Single-threaded OpenMP
+      'OPENBLAS_NUM_THREADS': '1',                    # Single-threaded BLAS operations
   }
   
   for key, value in timeout_env_vars.items():
     os.environ[key] = value
     print(f"Set {key}={value}")
   
-  print("Successfully configured Beam RPC timeouts")
+  print("Successfully configured Beam RPC timeouts and deterministic execution")
 
 
 def pytest_configure(config):
