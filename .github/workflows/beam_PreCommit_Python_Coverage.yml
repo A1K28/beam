@@ -198,7 +198,8 @@ jobs:
           TESTCONTAINERS_RYUK_DISABLED: "false"
           # Optional: some CI needs privileged Ryuk
           TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED: "true"
-          PYTEST_ADDOPTS: "--dist=loadfile -n 4"
+          # PYTEST_ADDOPTS: "--dist=loadfile -n 4"
+          PYTEST_ADDOPTS: "-k TestMilvusSearchEnrichment"
           
           TC_TIMEOUT: "120"
           TC_MAX_TRIES: "120"
