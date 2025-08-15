@@ -186,24 +186,17 @@ jobs:
           docker ps -q | xargs -r docker stop
           docker system prune -af
 
-      # When running tests, feed Testcontainers the resolved host
-      # (127.0.0.1 if DinD is on host networking; the bridge IP otherwise)
       - name: Run preCommitPyCoverage
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_"
+          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_*,BEAM_*,GRPC_*,OMP_*,OPENBLAS_*,PYTHONHASHSEED"
           TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
-          # Ryuk ON (omit entirely or set to "false")
           TESTCONTAINERS_RYUK_DISABLED: "false"
-          # Optional: some CI needs privileged Ryuk
           TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED: "true"
-          # PYTEST_ADDOPTS: "--dist=loadfile -n 4"
-
-          BEAM_TESTING_FORCE_SINGLE_BUNDLE: "true"
-          BEAM_TESTING_DETERMINISTIC_ORDER: "true"
-          PYTEST_CURRENT_TEST_TIMEOUT: "600"  # 10 minutes per test
-          PYTEST_ADDOPTS: "--tb=short --maxfail=3 --durations=20"
+          
+          # CRITICAL: Force sequential execution to eliminate race conditions
+          PYTEST_ADDOPTS: "-v --tb=short --maxfail=5 --durations=20 -x"  # Remove -n flag, add -x to stop on first failure
           
           TC_TIMEOUT: "120"
           TC_MAX_TRIES: "120"
