@@ -84,6 +84,10 @@ def configure_beam_rpc_timeouts():
       'PYTHONHASHSEED': '0',                          # Deterministic hash seed
       'OMP_NUM_THREADS': '1',                         # Single-threaded OpenMP
       'OPENBLAS_NUM_THREADS': '1',                    # Single-threaded BLAS operations
+      
+      # Force sequential pytest execution (CRITICAL for DinD stability)
+      'PYTEST_XDIST_WORKER_COUNT': '1',               # Force single worker
+      'PYTEST_CURRENT_TEST_TIMEOUT': '300',           # 5 minutes per test timeout
   }
   
   for key, value in timeout_env_vars.items():
@@ -91,6 +95,26 @@ def configure_beam_rpc_timeouts():
     print(f"Set {key}={value}")
   
   print("Successfully configured Beam RPC timeouts and deterministic execution")
+
+
+@pytest.fixture(autouse=True)
+def ensure_clean_state():
+  """Ensure clean state before each test to prevent cross-test contamination."""
+  import gc
+  import threading
+  
+  # Force garbage collection to clean up any lingering resources
+  gc.collect()
+  
+  # Log active thread count for debugging
+  thread_count = threading.active_count()
+  if thread_count > 10:  # Arbitrary threshold
+    print(f"Warning: {thread_count} active threads detected before test")
+  
+  yield
+  
+  # Cleanup after test
+  gc.collect()
 
 
 def pytest_configure(config):
