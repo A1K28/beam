@@ -199,7 +199,11 @@ jobs:
           # Optional: some CI needs privileged Ryuk
           TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED: "true"
           # PYTEST_ADDOPTS: "--dist=loadfile -n 4"
-          PYTEST_ADDOPTS: "-k TestMilvusSearchEnrichment"
+
+          BEAM_TESTING_FORCE_SINGLE_BUNDLE: "true"
+          BEAM_TESTING_DETERMINISTIC_ORDER: "true"
+          PYTEST_CURRENT_TEST_TIMEOUT: "600"  # 10 minutes per test
+          PYTEST_ADDOPTS: "--tb=short --maxfail=3 --durations=20"
           
           TC_TIMEOUT: "120"
           TC_MAX_TRIES: "120"

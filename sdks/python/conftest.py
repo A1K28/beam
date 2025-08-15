@@ -59,6 +59,22 @@ def configure_beam_rpc_timeouts():
       'GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS': '1',  # Allow keepalive without calls
       'GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS': '300000',  # 5 minutes
       'GRPC_ARG_HTTP2_MIN_SENT_PING_INTERVAL_WITHOUT_DATA_MS': '10000',   # 10 seconds
+      
+      # Additional stability settings for DinD environment
+      'GRPC_ARG_MAX_RECONNECT_BACKOFF_MS': '120000',   # 2 minutes max backoff
+      'GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS': '1000', # 1 second initial backoff
+      'GRPC_ARG_MAX_CONNECTION_IDLE_MS': '300000',     # 5 minutes idle timeout
+      'GRPC_ARG_MAX_CONNECTION_AGE_MS': '1800000',     # 30 minutes max connection age
+      
+      # Beam-specific retry and timeout settings
+      'BEAM_RETRY_MAX_ATTEMPTS': '5',                  # Increase retry attempts
+      'BEAM_RETRY_INITIAL_DELAY_MS': '1000',          # 1 second initial delay
+      'BEAM_RETRY_MAX_DELAY_MS': '60000',             # 60 seconds max delay
+      'BEAM_RUNNER_BUNDLE_TIMEOUT_MS': '300000',      # 5 minutes bundle timeout
+      
+      # Portable runner stability
+      'BEAM_WORKER_POOL_SIZE': '2',                   # Reduce worker pool for stability
+      'BEAM_SDK_WORKER_PARALLELISM': '1',             # Single-threaded workers for determinism
   }
   
   for key, value in timeout_env_vars.items():
