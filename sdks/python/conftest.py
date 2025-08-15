@@ -27,6 +27,10 @@ from testcontainers.core import waiting_utils
 from apache_beam.options import pipeline_options
 from apache_beam.testing.test_pipeline import TestPipeline
 
+import pytest
+from apache_beam.options.pipeline_options import PipelineOptions, SdkHarnessOptions
+
+
 MAX_SUPPORTED_PYTHON_VERSION = (3, 13)
 
 
@@ -42,6 +46,33 @@ collect_ignore_glob = [
     '*_py3%d.py' % minor for minor in range(
         sys.version_info.minor + 1, MAX_SUPPORTED_PYTHON_VERSION[1] + 1)
 ]
+
+
+# Store the original __init__ method of TestPipeline
+_original_test_pipeline_init = TestPipeline.__init__
+
+def _patched_test_pipeline_init(self, options=None, runner=None, argv=None):
+  """A patched __init__ that sets a default RPC timeout."""
+  
+  # If the test doesn't provide its own options, create them.
+  if options is None:
+    options = PipelineOptions(argv)
+  
+  # Get the SdkHarnessOptions and set the timeout if it's not already set.
+  # This respects any timeout set explicitly in a specific test.
+  sdk_harness_options = options.view_as(SdkHarnessOptions)
+  if sdk_harness_options.sdk_harness_rpc_timeout_secs is None:
+    # Set your desired global timeout here (e.g., 120 seconds)
+    sdk_harness_options.sdk_harness_rpc_timeout_secs = 120
+  
+  # Call the original __init__ with the modified options
+  _original_test_pipeline_init(self, options=options, runner=runner)
+
+
+def pytest_sessionstart(session):
+  """Called by pytest at the start of the testing session."""
+  # Replace the original TestPipeline's __init__ with a patched version
+  TestPipeline.__init__ = _patched_test_pipeline_init
 
 
 def pytest_configure(config):
