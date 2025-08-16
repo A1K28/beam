@@ -98,6 +98,7 @@ jobs:
       - name: Run preCommitPyCoverage
         env:
           DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_*,BEAM_*,GRPC_*,OMP_*,OPENBLAS_*,PYTHONHASHSEED"
           TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
           TESTCONTAINERS_RYUK_DISABLED: "false"

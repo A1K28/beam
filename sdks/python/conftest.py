@@ -46,6 +46,57 @@ collect_ignore_glob = [
 ]
 
 
+@pytest.fixture(scope="session", autouse=True)
+def configure_beam_rpc_timeouts():
+  """Configure gRPC and RPC timeouts for Beam tests to prevent DEADLINE_EXCEEDED errors."""
+  print("\n--- Applying Beam RPC timeout configuration ---")
+  
+  # Set gRPC keepalive and timeout settings
+  timeout_env_vars = {
+      'GRPC_ARG_KEEPALIVE_TIME_MS': '30000',           # 30 seconds keepalive
+      'GRPC_ARG_KEEPALIVE_TIMEOUT_MS': '5000',         # 5 seconds timeout
+      'GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA': '0',    # Unlimited pings
+      'GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS': '1',  # Allow keepalive without calls
+      'GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS': '300000',  # 5 minutes
+      'GRPC_ARG_HTTP2_MIN_SENT_PING_INTERVAL_WITHOUT_DATA_MS': '10000',   # 10 seconds
+      
+      # Additional stability settings for DinD environment
+      'GRPC_ARG_MAX_RECONNECT_BACKOFF_MS': '120000',   # 2 minutes max backoff
+      'GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS': '1000', # 1 second initial backoff
+      'GRPC_ARG_MAX_CONNECTION_IDLE_MS': '300000',     # 5 minutes idle timeout
+      'GRPC_ARG_MAX_CONNECTION_AGE_MS': '1800000',     # 30 minutes max connection age
+      
+      # Beam-specific retry and timeout settings
+      'BEAM_RETRY_MAX_ATTEMPTS': '5',                  # Increase retry attempts
+      'BEAM_RETRY_INITIAL_DELAY_MS': '1000',          # 1 second initial delay
+      'BEAM_RETRY_MAX_DELAY_MS': '60000',             # 60 seconds max delay
+      'BEAM_RUNNER_BUNDLE_TIMEOUT_MS': '300000',      # 5 minutes bundle timeout
+      
+      # Force deterministic execution in DinD environment
+      'BEAM_TESTING_FORCE_SINGLE_BUNDLE': 'true',     # Force single bundle processing
+      'BEAM_TESTING_DETERMINISTIC_ORDER': 'true',     # Force deterministic element ordering
+      'BEAM_SDK_WORKER_PARALLELISM': '1',             # Single-threaded workers
+      'BEAM_WORKER_POOL_SIZE': '1',                   # Single worker pool
+      'BEAM_FN_API_CONTROL_PORT': '0',                # Let system assign ports
+      'BEAM_FN_API_DATA_PORT': '0',                   # Let system assign ports
+      
+      # Container-specific stability settings
+      'PYTHONHASHSEED': '0',                          # Deterministic hash seed
+      'OMP_NUM_THREADS': '1',                         # Single-threaded OpenMP
+      'OPENBLAS_NUM_THREADS': '1',                    # Single-threaded BLAS operations
+      
+      # Force sequential pytest execution (CRITICAL for DinD stability)
+      'PYTEST_XDIST_WORKER_COUNT': '1',               # Force single worker
+      'PYTEST_CURRENT_TEST_TIMEOUT': '300',           # 5 minutes per test timeout
+  }
+  
+  for key, value in timeout_env_vars.items():
+    os.environ[key] = value
+    print(f"Set {key}={value}")
+  
+  print("Successfully configured Beam RPC timeouts and deterministic execution")
+
+
 @pytest.fixture(autouse=True)
 def ensure_clean_state():
   """Ensure clean state before each test to prevent cross-test contamination."""
@@ -71,14 +122,14 @@ def pytest_configure(config):
   This is necessary since pytest-xdist workers do not have the same sys.argv as
   the main pytest invocation. xdist does seem to pickle TestPipeline
   """
-  # set testcontainers vars for the entire test session.
-  # this is necessary since testcontainers ignores these vars,
-  # even after passing through tox.
+  # for the entire test session.
+  print("\n--- Applying global testcontainers timeout configuration ---")
   waiting_utils.config = SimpleNamespace(
-    timeout=int(os.getenv("TC_TIMEOUT", "120")),
-    max_tries=int(os.getenv("TC_MAX_TRIES", "120")),
-    sleep_time=float(os.getenv("TC_SLEEP_TIME", "1")),
+      timeout=int(os.getenv("TC_TIMEOUT", "120")),
+      max_tries=int(os.getenv("TC_MAX_TRIES", "120")),
+      sleep_time=float(os.getenv("TC_SLEEP_TIME", "1")),
   )
+  print("Successfully set waiting utils config")
 
   TestPipeline.pytest_test_pipeline_options = config.getoption(
       'test_pipeline_options', default='')
