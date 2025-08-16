@@ -59,7 +59,7 @@ env:
 jobs:
   beam_PreCommit_Python_Coverage:
     name: ${{ matrix.job_name }} (${{ matrix.job_phrase }})
-    runs-on: [main]
+    runs-on: [highmem]
     strategy:
       matrix:
         job_name: [beam_PreCommit_Python_Coverage]
@@ -85,7 +85,7 @@ jobs:
           java-version: default
           python-version: default
       - name: Start DinD
-        uses: ./.github/actions/disawdsawdsnd-up-action
+        uses: ./.github/actions/dind-up-action
         id: dind
         with:
           # Enable all the new features
