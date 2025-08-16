@@ -85,7 +85,7 @@ jobs:
           java-version: default
           python-version: default
       - name: Start DinD
-        uses: ./.github/actions/dind-up-action
+        uses: ./.github/actions/disawdsawdsnd-up-action
         id: dind
         with:
           # Enable all the new features
