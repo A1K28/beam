@@ -16,6 +16,9 @@ inputs:
     description: 'The build context for the Docker build command'
     required: false
     default: '.'
+  requirements_file:
+    description: 'Path to the requirements file to use for the build'
+    required: true
 
 outputs:
   image_url:
@@ -25,9 +28,9 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Configure Docker to use Google Cloud credentials
+    - name: Configure Docker for Artifact Registry
       shell: bash
-      run: gcloud auth configure-docker --quiet
+      run: gcloud auth configure-docker us-docker.pkg.dev
 
     - name: Build and Push Docker Image
       id: build-push # give the step an ID to reference its output
@@ -36,9 +39,15 @@ runs:
         # Construct the full image URL from the inputs
         FULL_IMAGE_URL="${{ inputs.image_name }}:${{ inputs.image_tag }}"
         echo "Building image: $FULL_IMAGE_URL"
+        echo "Using requirements file: ${{ inputs.requirements_file }}"
         
-        # Build the image
-        docker build -t $FULL_IMAGE_URL -f ${{ inputs.dockerfile_path }} ${{ inputs.build_context }}
+        # Build the image with requirements file build arg
+        docker build \
+          -t $FULL_IMAGE_URL \
+          -f ${{ inputs.dockerfile_path }} \
+          --build-arg REQUIREMENTS_FILE=${{ inputs.requirements_file }} \
+          ${{ inputs.build_context }}
+        
         # Push the image
         docker push $FULL_IMAGE_URL
         # Set the output value for this action
