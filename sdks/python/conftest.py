@@ -88,6 +88,10 @@ def configure_beam_rpc_timeouts():
       # Force sequential pytest execution (CRITICAL for DinD stability)
       'PYTEST_XDIST_WORKER_COUNT': '1',               # Force single worker
       'PYTEST_CURRENT_TEST_TIMEOUT': '300',           # 5 minutes per test timeout
+      
+      # Mock and test isolation improvements
+      'PYTEST_MOCK_TIMEOUT': '60',                    # 1 minute timeout for mock operations
+      'BEAM_TEST_ISOLATION_MODE': 'strict',           # Strict test isolation
   }
   
   for key, value in timeout_env_vars.items():
@@ -102,19 +106,48 @@ def ensure_clean_state():
   """Ensure clean state before each test to prevent cross-test contamination."""
   import gc
   import threading
+  import time
   
   # Force garbage collection to clean up any lingering resources
   gc.collect()
   
   # Log active thread count for debugging
   thread_count = threading.active_count()
-  if thread_count > 10:  # Arbitrary threshold
+  if thread_count > 50:  # Increased threshold since we see 104 threads
     print(f"Warning: {thread_count} active threads detected before test")
+    
+    # Force a brief pause to let threads settle
+    time.sleep(0.5)
+    gc.collect()
   
   yield
   
-  # Cleanup after test
-  gc.collect()
+  # Enhanced cleanup after test
+  try:
+    # Force more aggressive cleanup
+    gc.collect()
+    
+    # Brief pause to let any async operations complete
+    time.sleep(0.1)
+    
+    # Additional garbage collection
+    gc.collect()
+  except Exception as e:
+    print(f"Warning: Cleanup error: {e}")
+
+
+@pytest.fixture(autouse=True)
+def enhance_mock_stability():
+  """Enhance mock stability in DinD environment."""
+  import time
+  
+  # Brief pause before test to ensure clean mock state
+  time.sleep(0.05)
+  
+  yield
+  
+  # Brief pause after test to let mocks clean up
+  time.sleep(0.05)
 
 
 def pytest_configure(config):
