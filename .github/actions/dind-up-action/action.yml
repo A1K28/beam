@@ -197,8 +197,15 @@ runs:
       run: |
         echo "Performing initial cleanup of DinD environment..."
         DIND_HOST="${{ steps.set-output.outputs.docker-host }}"
-        docker -H "${DIND_HOST}" system prune -af --volumes
-        docker -H "${DIND_HOST}" image prune -af
+        
+        # Remove ANY existing Ryuk containers (they'll be recreated as needed)
+        echo "Removing any existing Testcontainers Ryuk containers..."
+        docker -H "${DIND_HOST}" ps -aq --filter "name=testcontainers-ryuk" | xargs -r docker -H "${DIND_HOST}" rm -f || true
+        
+        # Remove stopped test containers but keep useful images
+        docker -H "${DIND_HOST}" container prune -f
+        
+        echo "Cleanup completed - Ryuk will be recreated fresh."
 
     - id: discover-ip
       name: Discover DinD Container IP
