@@ -82,13 +82,13 @@ class TestFeastEnrichmentHandler(unittest.TestCase):
     requests = [
         beam.Row(user_id=1, product_id=1),
     ]
-    handler = FeastFeatureStoreEnrichmentHandler(
-        entity_id='user_id',
-        feature_store_yaml_path=self.feature_store_yaml_file,
-        feature_service_name="bad_name",
-    )
 
     with self.assertRaises(RuntimeError):
+      handler = FeastFeatureStoreEnrichmentHandler(
+          entity_id='user_id',
+          feature_store_yaml_path=self.feature_store_yaml_file,
+          feature_service_name="bad_name",
+      )
       test_pipeline = beam.Pipeline()
       _ = (test_pipeline | beam.Create(requests) | Enrichment(handler))
       res = test_pipeline.run()
