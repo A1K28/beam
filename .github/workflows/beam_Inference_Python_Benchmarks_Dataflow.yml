@@ -123,14 +123,14 @@ jobs:
           image_tag: ${{ github.sha }}
           requirements_file: 'sdks/python/apache_beam/ml/inference/vision_object_detection_worker_requirements.txt'
 
-      # - name: Build Image Captioning Development Image
-      #   id: build_img_caption_image
-      #   uses: ./.github/actions/build-push-docker-action
-      #   with:
-      #     dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/ml.gpu.dockerfile'
-      #     image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/img-caption-gpu-base'
-      #     image_tag: ${{ github.sha }}
-      #     requirements_file: 'sdks/python/apache_beam/ml/inference/vision_captions_worker_requirements.txt'
+      - name: Build Image Captioning Development Image
+        id: build_img_caption_image
+        uses: ./.github/actions/build-push-docker-action
+        with:
+          dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/ml.gpu.dockerfile'
+          image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/img-caption-gpu-base'
+          image_tag: ${{ github.sha }}
+          requirements_file: 'sdks/python/apache_beam/ml/inference/vision_captions_worker_requirements.txt'
 
       # - name: Build VLLM Development Image
       #   id: build_vllm_image
