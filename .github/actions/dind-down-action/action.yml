@@ -1,0 +1,144 @@
+name: "Stop and Clean DinD"
+description: "Gracefully stop and clean up Docker-in-Docker environment."
+
+inputs:
+  container-name:
+    description: "Name of the DinD container to stop."
+    default: dind-daemon
+  storage-volume:
+    description: "Storage volume name to clean up."
+    required: false
+  execroot-volume:
+    description: "Execroot volume name to clean up."
+    required: false
+  force-cleanup:
+    description: "Force cleanup even if graceful shutdown fails."
+    default: "true"
+  cleanup-timeout:
+    description: "Timeout for graceful cleanup in seconds."
+    default: "30"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Stop all containers in DinD
+      shell: bash
+      run: |
+        set +e  # Don't exit on errors during cleanup
+        
+        NAME="${{ inputs.container-name }}"
+        TIMEOUT="${{ inputs.cleanup-timeout }}"
+        
+        # Get the DinD daemon address
+        DIND_HOST="tcp://127.0.0.1:2375"
+        
+        echo "=== Starting DinD cleanup ==="
+        
+        # Check if DinD container is running
+        if ! docker ps --format '{{.Names}}' | grep -q "^${NAME}$"; then
+          echo "DinD container '${NAME}' not found or not running."
+          exit 0
+        fi
+        
+        echo "Stopping all containers inside DinD..."
+        # Stop all running containers inside DinD
+        timeout ${TIMEOUT}s bash -c '
+          containers=$(docker -H "'${DIND_HOST}'" ps -q 2>/dev/null || true)
+          if [[ -n "$containers" ]]; then
+            echo "Stopping containers: $containers"
+            docker -H "'${DIND_HOST}'" stop $containers || true
+            docker -H "'${DIND_HOST}'" rm -f $containers || true
+          else
+            echo "No containers to stop in DinD"
+          fi
+        ' || echo "Timeout during container cleanup, forcing..."
+
+    - name: Clean DinD resources
+      shell: bash
+      run: |
+        set +e
+        
+        NAME="${{ inputs.container-name }}"
+        DIND_HOST="tcp://127.0.0.1:2375"
+        
+        echo "Cleaning up DinD resources..."
+        
+        # Clean up testcontainers resources specifically
+        echo "Removing testcontainers resources..."
+        docker -H "${DIND_HOST}" network ls -q --filter "label=org.testcontainers" | xargs -r docker -H "${DIND_HOST}" network rm || true
+        docker -H "${DIND_HOST}" volume ls -q --filter "label=org.testcontainers" | xargs -r docker -H "${DIND_HOST}" volume rm || true
+        
+        # System prune
+        echo "Running system prune..."
+        docker -H "${DIND_HOST}" system prune -a -f --volumes || true
+        
+        echo "DinD resource cleanup completed."
+
+    - name: Stop DinD daemon
+      shell: bash
+      run: |
+        set +e
+        
+        NAME="${{ inputs.container-name }}"
+        FORCE="${{ inputs.force-cleanup }}"
+        TIMEOUT="${{ inputs.cleanup-timeout }}"
+        
+        echo "Stopping DinD daemon container..."
+        
+        # Try graceful stop first
+        if docker stop --time=${TIMEOUT} "${NAME}" 2>/dev/null; then
+          echo "DinD container stopped gracefully."
+        else
+          if [[ "${FORCE}" == "true" ]]; then
+            echo "Graceful stop failed, force killing..."
+            docker kill "${NAME}" || true
+          fi
+        fi
+        
+        # Remove the container
+        docker rm -f -v "${NAME}" || true
+        echo "DinD container removed."
+
+    - name: Clean up volumes
+      shell: bash
+      run: |
+        set +e
+        
+        STORAGE_VOL="${{ inputs.storage-volume }}"
+        EXECROOT_VOL="${{ inputs.execroot-volume }}"
+        
+        echo "Cleaning up DinD volumes..."
+        
+        # Remove specific volumes if provided
+        if [[ -n "${STORAGE_VOL}" ]]; then
+          docker volume rm "${STORAGE_VOL}" || true
+          echo "Removed storage volume: ${STORAGE_VOL}"
+        fi
+        
+        if [[ -n "${EXECROOT_VOL}" ]]; then
+          docker volume rm "${EXECROOT_VOL}" || true
+          echo "Removed execroot volume: ${EXECROOT_VOL}"
+        fi
+        
+        # Clean up any dangling DinD volumes for this repo
+        docker volume ls -q \
+          --filter "label=com.github.dind=1" \
+          --filter "label=com.github.repo=${GITHUB_REPOSITORY}" \
+          --filter "dangling=true" | xargs -r docker volume rm || true
+        
+        echo "Volume cleanup completed."
+
+    - name: Final process cleanup
+      shell: bash
+      run: |
+        set +e
+        
+        echo "=== Final cleanup ==="
+        
+        # Kill any remaining docker processes that might be hanging
+        pkill -f "docker.*tcp://127.0.0.1:2375" || true
+        
+        # Wait a moment for processes to terminate
+        sleep 2
+        
+        echo "DinD cleanup completed successfully."
