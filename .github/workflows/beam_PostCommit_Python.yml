@@ -89,6 +89,13 @@ jobs:
             21
             11
           python-version: ${{ matrix.python_version }}
+          
+      - name: Check Python environment
+        run: |
+          python -m pip list | grep -E "(build|setuptools|wheel)"
+          python -c "import sys; print(f'Python: {sys.executable}')"
+          which python3.9
+
       - name: Install docker compose
         run: |
           sudo curl -L https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
@@ -110,6 +117,19 @@ jobs:
           tmpfs-run-size: 2g
           tmpfs-varrun-size: 4g
           export-gh-env: "true"
+
+      - name: Check Python environment inside DinD
+        env:
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+        run: |
+          echo "=== Host Python Environment ==="
+          python -m pip list | grep -E "(build|setuptools|wheel)" || echo "No build tools found"
+          python -c "import sys; print(f'Host Python: {sys.executable}')"
+          
+          echo "=== DinD Python Environment ==="
+          docker run --rm python:3.9 python -m pip list | grep -E "(build|setuptools|wheel)" || echo "No build tools in DinD"
+          docker run --rm python:3.9 python -c "import sys; print(f'DinD Python: {sys.executable}')"
+
       - name: run PostCommit Python ${{ matrix.python_version }} script
         env:
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
