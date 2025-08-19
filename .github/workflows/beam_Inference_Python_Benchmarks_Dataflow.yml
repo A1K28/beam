@@ -114,23 +114,23 @@ jobs:
       #       -PpythonVersion=3.10 \
       #       -PloadTest.requirementsTxtFile=apache_beam/ml/inference/vllm_tests_requirements.txt '-PloadTest.args=${{ env.beam_Inference_Python_Benchmarks_Dataflow_test_arguments_8 }} --mode=batch --job_name=benchmark-tests-vllm-with-gemma-2b-it-batch-${{env.NOW_UTC}} --sdk_container_image=${{ steps.build_img_class_image.outputs.image_url }}'
           
-      # - name: Build Image Object Detection Development Image
-      #   id: build_img_obj_detect_image
-      #   uses: ./.github/actions/build-push-docker-action
-      #   with:
-      #     dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/ml.gpu.dockerfile'
-      #     image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/img-objdetect-gpu-base'
-      #     image_tag: ${{ github.sha }}
-      #     requirements_file: 'sdks/python/apache_beam/ml/inference/vision_object_detection_worker_requirements.txt'
+      - name: Build Image Object Detection Development Image
+        id: build_img_obj_detect_image
+        uses: ./.github/actions/build-push-docker-action
+        with:
+          dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/ml.gpu.dockerfile'
+          image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/img-objdetect-gpu-base'
+          image_tag: ${{ github.sha }}
+          requirements_file: 'sdks/python/apache_beam/ml/inference/vision_object_detection_worker_requirements.txt'
 
-      # - name: Build Image Captioning Development Image
-      #   id: build_img_caption_image
-      #   uses: ./.github/actions/build-push-docker-action
-      #   with:
-      #     dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/ml.gpu.dockerfile'
-      #     image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/img-caption-gpu-base'
-      #     image_tag: ${{ github.sha }}
-      #     requirements_file: 'sdks/python/apache_beam/ml/inference/vision_captions_worker_requirements.txt'
+      - name: Build Image Captioning Development Image
+        id: build_img_caption_image
+        uses: ./.github/actions/build-push-docker-action
+        with:
+          dockerfile_path: 'sdks/python/apache_beam/ml/inference/test_resources/ml.gpu.dockerfile'
+          image_name: 'us-docker.pkg.dev/apache-beam-testing/beam-temp/img-caption-gpu-base'
+          image_tag: ${{ github.sha }}
+          requirements_file: 'sdks/python/apache_beam/ml/inference/vision_captions_worker_requirements.txt'
 
       # - name: Build VLLM Development Image
       #   id: build_vllm_image
