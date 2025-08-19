@@ -85,6 +85,7 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
+          go-version: default
           java-version: |
             21
             11
@@ -123,17 +124,8 @@ jobs:
           tmpfs-varrun-size: 4g
           export-gh-env: "true"
 
-      - name: Check Python environment inside DinD
-        env:
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-        run: |
-          echo "=== Host Python Environment ==="
-          python -m pip list | grep -E "(build|setuptools|wheel)" || echo "No build tools found"
-          python -c "import sys; print(f'Host Python: {sys.executable}')"
-          
-          echo "=== DinD Python Environment ==="
-          docker run --rm python:3.9 python -m pip list | grep -E "(build|setuptools|wheel)" || echo "No build tools in DinD"
-          docker run --rm python:3.9 python -c "import sys; print(f'DinD Python: {sys.executable}')"
+      - name: Upgrade cachetools
+        run: pip install --upgrade cachetools
 
       - name: run PostCommit Python ${{ matrix.python_version }} script
         env:
