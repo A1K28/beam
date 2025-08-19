@@ -155,7 +155,6 @@ jobs:
           # Additional gRPC settings
           GRPC_ARG_MAX_RECONNECT_BACKOFF_MS: "120000"
           GRPC_ARG_INITIAL_RECONNECT_BACKOFF_MS: "2000"
-          GRPC_ARG_MAX_CONNECTION_IDLE_MS: "300000"
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :sdks:python:test-suites:tox:py${{steps.set_py_ver_clean.outputs.py_ver_clean}}:preCommitPy${{steps.set_py_ver_clean.outputs.py_ver_clean}}
