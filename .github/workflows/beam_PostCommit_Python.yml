@@ -126,13 +126,8 @@ jobs:
 
       - name: run PostCommit Python ${{ matrix.python_version }} script
         env:
-          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
-          TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_*,BEAM_*,GRPC_*,OMP_*,OPENBLAS_*,PYTHONHASHSEED,PYTEST_*"
-          TESTCONTAINERS_HOST_OVERRIDE: ${{ env.DIND_IP }}
-          TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock"
-          TESTCONTAINERS_RYUK_DISABLED: "false"
-          TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED: "true"     
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
         uses: ./.github/actions/gradle-command-self-hosted-action
         with:
           gradle-command: :python${{steps.set_py_ver_clean.outputs.py_ver_clean}}PostCommit
