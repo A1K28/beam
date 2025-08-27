@@ -453,7 +453,9 @@ class BaseTestSQLEnrichment(unittest.TestCase):
 
     with self.assertRaises(Exception) as context:
       with TestPipeline() as p:
-        _ = (p | beam.Create(requests) | Enrichment(handler))
+        result = p | beam.Create(requests) | Enrichment(handler)
+        # Force pipeline execution where the error actually occurs
+        p.run().wait_until_finish()
 
     expect_err_msg_contains = (
         "Could not execute the query. Please check if the query is properly "
