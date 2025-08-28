@@ -142,6 +142,17 @@ jobs:
           tmpfs-run-size: 2g
           tmpfs-varrun-size: 4g
           export-gh-env: "true"
+
+      - name: Debug build context
+        run: |
+          echo "Contents of target directory:"
+          ls -la target/ || echo "target directory doesn't exist"
+          find . -name "*go-license*" -type d 2>/dev/null || echo "No go-license directories found"
+
+      - name: Prepare Docker build context  
+        run: |
+          mkdir -p target/go-licenses
+          touch target/go-licenses/.gitkeep
           
       # Add retry mechanism for the main test execution
       - name: run PostCommit Python ${{ matrix.python_version }} script
