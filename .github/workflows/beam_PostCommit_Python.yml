@@ -205,6 +205,8 @@ jobs:
           continue-on-error: true
           
       - name: Publish Python Test Results
+        env:
+          DOCKER_HOST: ""  # Unset DOCKER_HOST to run on host Docker daemon
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
