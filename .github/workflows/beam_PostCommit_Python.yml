@@ -149,9 +149,13 @@ jobs:
           ls -la target/ || echo "target directory doesn't exist"
           find . -name "*go-license*" -type d 2>/dev/null || echo "No go-license directories found"
 
-      - name: Prepare Docker build context  
+      - name: Prepare Docker build context
         run: |
           mkdir -p target/go-licenses
+          if [ -d "./release/go-licenses" ]; then
+            cp -r ./release/go-licenses/* target/go-licenses/ || echo "No files to copy"
+          fi
+          # Ensure the directory exists even if empty
           touch target/go-licenses/.gitkeep
           
       # Add retry mechanism for the main test execution
