@@ -116,7 +116,7 @@ jobs:
 
       - name: Build & push Java SDK harness container
         run: |
-          ./gradlew :sdks:java:container:java11:docker --load
+          ./gradlew :sdks:java:container:java11:docker -Pusebuildx=false
           ./gradlew :runners:google-cloud-dataflow-java:buildAndPushDockerJavaContainer
 
       - name: Run cross‑language GoUsingJava Dataflow tests
