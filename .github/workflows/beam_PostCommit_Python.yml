@@ -157,6 +157,16 @@ jobs:
           fi
           # Ensure the directory exists even if empty
           touch target/go-licenses/.gitkeep
+
+      - name: Upgrade cachetools
+        run: pip install --upgrade cachetools
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build wheel setuptools
+          # Explicitly install in the Gradle Python environment if needed
+          /runner/_work/beam/beam/build/gradleenv/-1734967050/bin/python3.9 -m pip install build || true
           
       # Add retry mechanism for the main test execution
       - name: run PostCommit Python ${{ matrix.python_version }} script
