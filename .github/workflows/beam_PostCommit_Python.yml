@@ -82,6 +82,19 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }} ${{ matrix.python_version }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
+
+      - name: Start DinD
+        uses: ./.github/actions/dind-up-action
+        id: dind
+        with:
+          # Enable all the new features
+          cleanup-dind-on-start: "true"
+          smoke-test-port-mapping: "true"
+          prime-testcontainers: "true"
+          tmpfs-run-size: 2g
+          tmpfs-varrun-size: 4g
+          export-gh-env: "true"
+          
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
@@ -89,6 +102,7 @@ jobs:
             21
             11
           python-version: ${{ matrix.python_version }}
+          go-version: default
       
       # Clean up any leftover containers/resources before starting
       - name: Cleanup Docker environment
@@ -130,18 +144,6 @@ jobs:
           PY_VER=${{ matrix.python_version }}
           PY_VER_CLEAN=${PY_VER//.}
           echo "py_ver_clean=$PY_VER_CLEAN" >> $GITHUB_OUTPUT
-
-      - name: Start DinD
-        uses: ./.github/actions/dind-up-action
-        id: dind
-        with:
-          # Enable all the new features
-          cleanup-dind-on-start: "true"
-          smoke-test-port-mapping: "true"
-          prime-testcontainers: "true"
-          tmpfs-run-size: 2g
-          tmpfs-varrun-size: 4g
-          export-gh-env: "true"
 
       - name: Debug build context
         run: |

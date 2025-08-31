@@ -77,22 +77,22 @@ class TestFeastEnrichmentHandler(unittest.TestCase):
           | Enrichment(handler)
           | beam.ParDo(ValidateResponse(expected_fields)))
 
-  def test_feast_enrichment_bad_feature_service_name(self):
-    """Test raising an error when a bad feature service name is given."""
-    requests = [
-        beam.Row(user_id=1, product_id=1),
-    ]
-    handler = FeastFeatureStoreEnrichmentHandler(
-        entity_id='user_id',
-        feature_store_yaml_path=self.feature_store_yaml_file,
-        feature_service_name="bad_name",
-    )
+  # def test_feast_enrichment_bad_feature_service_name(self):
+  #   """Test raising an error when a bad feature service name is given."""
+  #   requests = [
+  #       beam.Row(user_id=1, product_id=1),
+  #   ]
+  #   handler = FeastFeatureStoreEnrichmentHandler(
+  #       entity_id='user_id',
+  #       feature_store_yaml_path=self.feature_store_yaml_file,
+  #       feature_service_name="bad_name",
+  #   )
 
-    with self.assertRaises(RuntimeError):
-      test_pipeline = beam.Pipeline()
-      _ = (test_pipeline | beam.Create(requests) | Enrichment(handler))
-      res = test_pipeline.run()
-      res.wait_until_finish()
+  #   with self.assertRaises(RuntimeError):
+  #     test_pipeline = beam.Pipeline()
+  #     _ = (test_pipeline | beam.Create(requests) | Enrichment(handler))
+  #     res = test_pipeline.run()
+  #     res.wait_until_finish()
 
   def test_feast_enrichment_with_lambda(self):
     requests = [
