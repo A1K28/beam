@@ -55,7 +55,7 @@ jobs:
   beam_PostCommit_Python:
     name: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 180
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
@@ -82,18 +82,6 @@ jobs:
           comment_phrase: ${{ matrix.job_phrase }} ${{ matrix.python_version }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_job: ${{ matrix.job_name }} (${{ matrix.job_phrase }} ${{ matrix.python_version }})
-
-      - name: Start DinD
-        uses: ./.github/actions/dind-up-action
-        id: dind
-        with:
-          # Enable all the new features
-          cleanup-dind-on-start: "true"
-          smoke-test-port-mapping: "true"
-          prime-testcontainers: "true"
-          tmpfs-run-size: 2g
-          tmpfs-varrun-size: 4g
-          export-gh-env: "true"
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
@@ -147,6 +135,18 @@ jobs:
           PY_VER=${{ matrix.python_version }}
           PY_VER_CLEAN=${PY_VER//.}
           echo "py_ver_clean=$PY_VER_CLEAN" >> $GITHUB_OUTPUT
+
+      - name: Start DinD
+        uses: ./.github/actions/dind-up-action
+        id: dind
+        with:
+          # Enable all the new features
+          cleanup-dind-on-start: "true"
+          smoke-test-port-mapping: "true"
+          prime-testcontainers: "true"
+          tmpfs-run-size: 2g
+          tmpfs-varrun-size: 4g
+          export-gh-env: "true"
 
       - name: Debug build context
         run: |
