@@ -2899,7 +2899,12 @@ class BeamModulePlugin implements Plugin<Project> {
       def pipelineOpts = [
         "--expansion_addr=test:localhost:${javaPort}",
       ]
-      def goTask = project.project(":sdks:go:test:").goIoValidatesRunnerTask(project, config.name+"GoUsingJava", config.goScriptOptions, pipelineOpts)
+      def goTask = project.project(":sdks:go:test:").goIoValidatesRunnerTask(
+        project,
+        config.name+"GoUsingJava",
+        // Add the --test_expansion_jar argument right here!
+        config.goScriptOptions + ["--test_expansion_jar", expansionJar],
+        pipelineOpts)
       goTask.configure {
         description = "Validates runner for cross-language capability of using Java transforms from Go SDK"
         dependsOn setupTask
@@ -2908,9 +2913,8 @@ class BeamModulePlugin implements Plugin<Project> {
       // CrossLanguageValidatesRunnerTask is setup under python sdk but also runs tasks not involving
       // python versions. set 'skipNonPythonTask' property to avoid duplicated run of these tasks.
       if (!(project.hasProperty('skipNonPythonTask') && project.skipNonPythonTask == 'true')) {
-        // Re-enabled GoUsingJava tests after fixing underlying issues
-        // Previous issues: Docker daemon connectivity, SDK worker communication, timeout configurations
-        mainTask.configure { dependsOn goTask }
+        System.err.println 'GoUsingJava tests have been disabled: https://github.com/apache/beam/issues/30517#issuecomment-2341881604.'
+        // mainTask.configure { dependsOn goTask }
       }
       cleanupTask.configure { mustRunAfter goTask }
       config.cleanupJobServer.configure { mustRunAfter goTask }
