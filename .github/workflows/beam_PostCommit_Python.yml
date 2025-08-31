@@ -94,7 +94,7 @@ jobs:
           tmpfs-run-size: 2g
           tmpfs-varrun-size: 4g
           export-gh-env: "true"
-          
+
       - name: Setup environment
         uses: ./.github/actions/setup-environment-action
         with:
@@ -137,6 +137,9 @@ jobs:
           sudo sysctl -w net.ipv4.tcp_keepalive_intvl=60
           sudo sysctl -w net.ipv4.tcp_keepalive_probes=3
         continue-on-error: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
         
       - name: Set PY_VER_CLEAN
         id: set_py_ver_clean
