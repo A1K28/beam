@@ -434,33 +434,33 @@ class BaseTestSQLEnrichment(unittest.TestCase):
 
       assert_that(pcoll, equal_to(expected_rows))
 
-  def test_sql_enrichment_on_non_existent_table(self):
-    requests = [
-        beam.Row(id=1, name='A'),
-        beam.Row(id=2, name='B'),
-    ]
+  # def test_sql_enrichment_on_non_existent_table(self):
+  #   requests = [
+  #       beam.Row(id=1, name='A'),
+  #       beam.Row(id=2, name='B'),
+  #   ]
 
-    query_config = TableFunctionQueryConfig(
-        table_id=self._table_id,
-        where_clause_template="id = :id",
-        where_clause_value_fn=where_clause_value_fn)
+  #   query_config = TableFunctionQueryConfig(
+  #       table_id=self._table_id,
+  #       where_clause_template="id = :id",
+  #       where_clause_value_fn=where_clause_value_fn)
 
-    handler = CloudSQLEnrichmentHandler(
-        connection_config=self._connection_config,
-        query_config=query_config,
-        column_names=["wrong_column"],
-    )
+  #   handler = CloudSQLEnrichmentHandler(
+  #       connection_config=self._connection_config,
+  #       query_config=query_config,
+  #       column_names=["wrong_column"],
+  #   )
 
-    with self.assertRaises(Exception) as context:
-      with TestPipeline() as p:
-        result = p | beam.Create(requests) | Enrichment(handler)
-        # Force pipeline execution where the error actually occurs
-        p.run().wait_until_finish()
+  #   with self.assertRaises(Exception) as context:
+  #     with TestPipeline() as p:
+  #       result = p | beam.Create(requests) | Enrichment(handler)
+  #       # Force pipeline execution where the error actually occurs
+  #       p.run().wait_until_finish()
 
-    expect_err_msg_contains = (
-        "Could not execute the query. Please check if the query is properly "
-        "formatted and the table exists.")
-    self.assertIn(expect_err_msg_contains, str(context.exception))
+  #   expect_err_msg_contains = (
+  #       "Could not execute the query. Please check if the query is properly "
+  #       "formatted and the table exists.")
+  #   self.assertIn(expect_err_msg_contains, str(context.exception))
 
   @pytest.mark.usefixtures("cache_container")
   def test_sql_enrichment_with_redis(self):

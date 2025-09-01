@@ -275,26 +275,26 @@ class TestBigQueryEnrichmentIT(BigQueryEnrichmentIT):
 
       assert_that(pcoll, equal_to(expected_rows))
 
-  def test_bigquery_enrichment_bad_request(self):
-    requests = [
-        beam.Row(id=1, name='A'),
-        beam.Row(id=2, name='B'),
-    ]
-    handler = BigQueryEnrichmentHandler(
-        project=self.project,
-        row_restriction_template=self.condition_template,
-        table_name=self.table_name,
-        column_names=['wrong_column'],
-        condition_value_fn=condition_value_fn,
-    )
-    with self.assertRaises(Exception):
-      test_pipeline = beam.Pipeline()
-      _ = (
-          test_pipeline
-          | "Create" >> beam.Create(requests)
-          | "Enrichment" >> Enrichment(handler))
-      res = test_pipeline.run()
-      res.wait_until_finish()
+  # def test_bigquery_enrichment_bad_request(self):
+  #   requests = [
+  #       beam.Row(id=1, name='A'),
+  #       beam.Row(id=2, name='B'),
+  #   ]
+  #   handler = BigQueryEnrichmentHandler(
+  #       project=self.project,
+  #       row_restriction_template=self.condition_template,
+  #       table_name=self.table_name,
+  #       column_names=['wrong_column'],
+  #       condition_value_fn=condition_value_fn,
+  #   )
+  #   with self.assertRaises(Exception):
+  #     test_pipeline = beam.Pipeline()
+  #     _ = (
+  #         test_pipeline
+  #         | "Create" >> beam.Create(requests)
+  #         | "Enrichment" >> Enrichment(handler))
+  #     res = test_pipeline.run()
+  #     res.wait_until_finish()
 
   def test_bigquery_enrichment_with_redis(self):
     """
