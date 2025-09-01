@@ -61,7 +61,7 @@ jobs:
       matrix:
         job_name: [beam_PostCommit_Python]
         job_phrase: [Run Python PostCommit]
-        python_version: ['3.9']
+        python_version: ['3.9', '3.10', '3.11', '3.12']
         # Run on both self-hosted and GitHub-hosted runners.
         # Some tests (marked require_docker_in_docker) can't run on Beam's
         # self-hosted runners due to Docker-in-Docker environment constraint.
