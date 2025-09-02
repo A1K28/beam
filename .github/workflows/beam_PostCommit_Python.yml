@@ -136,17 +136,17 @@ jobs:
           PY_VER_CLEAN=${PY_VER//.}
           echo "py_ver_clean=$PY_VER_CLEAN" >> $GITHUB_OUTPUT
 
-      # - name: Start DinD
-      #   uses: ./.github/actions/dind-up-action
-      #   id: dind
-      #   with:
-      #     # Enable all the new features
-      #     cleanup-dind-on-start: "true"
-      #     smoke-test-port-mapping: "true"
-      #     prime-testcontainers: "true"
-      #     tmpfs-run-size: 2g
-      #     tmpfs-varrun-size: 4g
-      #     export-gh-env: "true"
+      - name: Start DinD
+        uses: ./.github/actions/dind-up-action
+        id: dind
+        with:
+          # Enable all the new features
+          cleanup-dind-on-start: "true"
+          smoke-test-port-mapping: "true"
+          prime-testcontainers: "true"
+          tmpfs-run-size: 2g
+          tmpfs-varrun-size: 4g
+          export-gh-env: "true"
 
       - name: Debug build context
         run: |
@@ -190,7 +190,7 @@ jobs:
             --continue \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" \
         env:
-          # DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
+          DOCKER_HOST: ${{ steps.dind.outputs.docker-host }}
           TOX_TESTENV_PASSENV: "DOCKER_*,TESTCONTAINERS_*,TC_*,BEAM_*,GRPC_*,OMP_*,OPENBLAS_*,PYTHONHASHSEED,PYTEST_*"
           CLOUDSDK_CONFIG: ${{ env.KUBELET_GCLOUD_CONFIG_PATH}}
           # Add environment variables for better test stability
